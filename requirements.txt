@@ -1,0 +1,39 @@
+# PyRAG - Engineering Standards Assistant
+# Python 3.10+ required (tested with Python 3.13)
+
+# Core RAG Framework (Python 3.13 compatible)
+llama-index
+llama-index-core
+llama-index-embeddings-openai
+llama-index-llms-openai
+
+# Vector Database
+chromadb
+
+# PDF Processing
+PyMuPDF
+pymupdf4llm
+
+# API Framework
+fastapi
+uvicorn[standard]
+pydantic
+pydantic-settings
+
+# Utilities
+python-dotenv
+openai
+tiktoken
+loguru
+tqdm
+
+# Modern Windows GUI
+customtkinter
+pillow
+
+# Hybrid Search & Reranking
+rank-bm25
+
+# Optional: Advanced table processing
+tabulate
+pandas
