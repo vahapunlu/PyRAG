@@ -3,8 +3,9 @@ PyRAG - Utility Functions and Configuration Management
 """
 
 import os
+import json
 from pathlib import Path
-from typing import Optional
+from typing import Optional, Dict, Any
 from pydantic_settings import BaseSettings
 from loguru import logger
 import sys
@@ -104,25 +105,131 @@ def ensure_directories():
         logger.debug(f"Directory checked: {dir_path}")
 
 
-def validate_pdf_files() -> list[Path]:
+def validate_files() -> list[Path]:
     """
-    Find and validate PDF files in data/ directory
+    Find and validate supported files (PDF, TXT, MD) in data/ directory
     """
     settings = get_settings()
     data_path = Path(settings.data_dir)
     
-    pdf_files = list(data_path.glob("*.pdf"))
+    extensions = ["*.pdf", "*.txt", "*.md"]
+    found_files = []
     
-    if not pdf_files:
-        logger.warning(f"⚠️  No PDF files found in {data_path}!")
-        logger.info(f"💡 Please copy your standard PDFs (IS10101, etc.) to '{data_path}' directory.")
+    for ext in extensions:
+        found_files.extend(list(data_path.glob(ext)))
+    
+    if not found_files:
+        logger.warning(f"⚠️  No supported files found in {data_path}!")
+        logger.info(f"💡 Please copy your documents to '{data_path}' directory.")
         return []
     
-    logger.info(f"✅ Found {len(pdf_files)} PDF file(s):")
-    for pdf in pdf_files:
-        logger.info(f"   📄 {pdf.name}")
+    logger.info(f"✅ Found {len(found_files)} file(s):")
+    for file in found_files:
+        logger.info(f"   📄 {file.name}")
     
-    return pdf_files
+    return found_files
+
+
+def get_category_mapping_path() -> Path:
+    """Return path for stored document category mapping JSON."""
+    settings = get_settings()
+    data_path = Path(settings.data_dir)
+    return data_path / "document_categories.json"
+
+
+def load_document_categories() -> Dict[str, Dict[str, Any]]:
+    """Load per-file category/project mapping from JSON (if exists).
+
+    Returns dict keyed by file name (not full path) with structure:
+    {"file.pdf": {"category": str, "project": str}}
+    """
+    mapping_path = get_category_mapping_path()
+    if not mapping_path.exists():
+        return {}
+    try:
+        with open(mapping_path, "r", encoding="utf-8") as f:
+            data = json.load(f)
+            if isinstance(data, dict):
+                # Normalize entries to dicts with category/project keys
+                normalized: Dict[str, Dict[str, Any]] = {}
+                for k, v in data.items():
+                    if isinstance(v, dict):
+                        category = v.get("category", "Uncategorized")
+                        project = v.get("project", "No Project")
+                    else:
+                        # Backwards compatibility: old format was plain category string
+                        category = str(v)
+                        project = "No Project"
+                    normalized[str(k)] = {
+                        "category": category,
+                        "project": project,
+                    }
+                return normalized
+    except Exception as e:
+        logger.error(f"Failed to load document category mapping: {e}")
+    return {}
+
+
+def save_document_categories(mapping: Dict[str, Dict[str, Any]]) -> None:
+    """Persist per-file category/project mapping as JSON in data/ folder."""
+    mapping_path = get_category_mapping_path()
+    try:
+        mapping_path.parent.mkdir(parents=True, exist_ok=True)
+        with open(mapping_path, "w", encoding="utf-8") as f:
+            json.dump(mapping, f, ensure_ascii=False, indent=2)
+        logger.info(f"💾 Saved document category mapping to {mapping_path}")
+    except Exception as e:
+        logger.error(f"Failed to save document category mapping: {e}")
+
+
+def get_app_settings_path() -> Path:
+    """Return path of application-level settings JSON (categories, projects)."""
+    settings = get_settings()
+    data_path = Path(settings.data_dir)
+    return data_path / "app_settings.json"
+
+
+def load_app_settings() -> Dict[str, Any]:
+    """Load global app settings (categories, projects) with sane defaults."""
+    path = get_app_settings_path()
+    defaults = {
+        "categories": [
+            "Standard",
+            "Employee Requirements",
+            "Internal Document",
+            "Government",
+            "Technical Guidance",
+        ],
+        "projects": [],
+    }
+
+    if not path.exists():
+        return defaults
+
+    try:
+        with open(path, "r", encoding="utf-8") as f:
+            data = json.load(f)
+        if not isinstance(data, dict):
+            return defaults
+        # Merge with defaults to be safe
+        categories = data.get("categories") or defaults["categories"]
+        projects = data.get("projects") or defaults["projects"]
+        return {"categories": categories, "projects": projects}
+    except Exception as e:
+        logger.error(f"Failed to load app settings: {e}")
+        return defaults
+
+
+def save_app_settings(settings_dict: Dict[str, Any]) -> None:
+    """Persist global app settings (categories, projects)."""
+    path = get_app_settings_path()
+    try:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        with open(path, "w", encoding="utf-8") as f:
+            json.dump(settings_dict, f, ensure_ascii=False, indent=2)
+        logger.info(f"💾 Saved app settings to {path}")
+    except Exception as e:
+        logger.error(f"Failed to save app settings: {e}")
 
 
 def format_context_for_llm(context_nodes: list, query: str) -> str:
@@ -193,5 +300,5 @@ if __name__ == "__main__":
     ensure_directories()
     logger.info("✅ Directories verified")
     
-    pdf_files = validate_pdf_files()
-    logger.info(f"✅ Found {len(pdf_files)} PDF file(s)")
+    files = validate_files()
+    logger.info(f"✅ Found {len(files)} file(s)")

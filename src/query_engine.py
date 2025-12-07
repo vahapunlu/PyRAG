@@ -77,13 +77,13 @@ class QueryEngine:
             )
             
             collection_name = self.settings.get_collection_name()
-            chroma_collection = chroma_client.get_collection(
+            self.chroma_collection = chroma_client.get_collection(
                 name=collection_name
             )
             
             # Vector store
             vector_store = ChromaVectorStore(
-                chroma_collection=chroma_collection
+                chroma_collection=self.chroma_collection
             )
             
             # Storage context
@@ -97,7 +97,7 @@ class QueryEngine:
                 storage_context=storage_context
             )
             
-            node_count = chroma_collection.count()
+            node_count = self.chroma_collection.count()
             logger.success(f"✅ Index loaded ({node_count} nodes)")
             
         except Exception as e:
@@ -133,15 +133,21 @@ class QueryEngine:
         self, 
         question: str,
         return_sources: bool = True,
-        stream: bool = False
+        stream: bool = False,
+        document_filter: Optional[str] = None,
+        category_filter: Optional[str] = None,
+        filters: Optional[Dict] = None
     ) -> Dict:
         """
-        Main query function
+        Main query function with optional filtering
         
         Args:
             question: User's question
             return_sources: Return source documents?
             stream: Streaming mode (currently False)
+            document_filter: Filter by specific document name (e.g., "IS10101")
+            category_filter: Filter by category (e.g., "Standard")
+            filters: Dictionary of filters {'document': 'name', 'category': 'cat', 'project': 'proj'}
             
         Returns:
             {
@@ -150,11 +156,61 @@ class QueryEngine:
                 "metadata": Dict
             }
         """
+        # Handle new filters dict format
+        if filters:
+            document_filter = filters.get('document', document_filter)
+            category_filter = filters.get('category', category_filter)
+            project_filter = filters.get('project')
+        else:
+            project_filter = None
+        
         logger.info(f"🔍 Query: '{question}'")
+        if document_filter:
+            logger.info(f"   📄 Document filter: {document_filter}")
+        if category_filter:
+            logger.info(f"   🏷️ Category filter: {category_filter}")
+        if project_filter:
+            logger.info(f"   📁 Project filter: {project_filter}")
         
         try:
-            # Execute query
-            response = self.query_engine.query(question)
+            # Build metadata filters if provided
+            from llama_index.core.vector_stores import MetadataFilters, MetadataFilter, FilterOperator
+            
+            metadata_filter_list = []
+            if document_filter:
+                metadata_filter_list.append(MetadataFilter(key="document_name", value=document_filter, operator=FilterOperator.EQ))
+            
+            if category_filter:
+                # Category filter needs to handle comma-separated values
+                metadata_filter_list.append(MetadataFilter(key="categories", value=category_filter, operator=FilterOperator.CONTAINS))
+            
+            if project_filter:
+                metadata_filter_list.append(MetadataFilter(key="project_name", value=project_filter, operator=FilterOperator.EQ))
+            
+            # Create custom retriever with filters if needed
+            if metadata_filter_list:
+                metadata_filters = MetadataFilters(filters=metadata_filter_list)
+                retriever = VectorIndexRetriever(
+                    index=self.index,
+                    similarity_top_k=5,
+                    filters=metadata_filters
+                )
+                
+                # Create temporary query engine with filtered retriever
+                response_synthesizer = get_response_synthesizer(
+                    response_mode="compact",
+                    structured_answer_filtering=True
+                )
+                
+                temp_query_engine = RetrieverQueryEngine(
+                    retriever=retriever,
+                    response_synthesizer=response_synthesizer
+                )
+                
+                response = temp_query_engine.query(question)
+            else:
+                # Use default query engine
+                response = self.query_engine.query(question)
             
             # Debug log
             logger.debug(f"Response type: {type(response)}")
@@ -201,6 +257,44 @@ class QueryEngine:
                 "sources": [],
                 "metadata": {"error": str(e)}
             }
+    
+    def switch_model(self, model_name: str):
+        """
+        Dynamically switch LLM model
+        
+        Args:
+            model_name: Model name (e.g., 'deepseek-chat', 'gpt-4-turbo-preview', 'gpt-3.5-turbo')
+        """
+        logger.info(f"🔄 Switching to model: {model_name}")
+        
+        try:
+            # Update settings
+            self.settings.llm_model = model_name
+            
+            # Determine which LLM to use
+            if "deepseek" in model_name.lower():
+                logger.info("📡 Configuring DeepSeek API...")
+                Settings.llm = DeepSeek(
+                    model=model_name,
+                    temperature=self.settings.llm_temperature,
+                    api_key=self.settings.deepseek_api_key
+                )
+            else:
+                logger.info("📡 Configuring OpenAI API...")
+                Settings.llm = OpenAI(
+                    model=model_name,
+                    temperature=self.settings.llm_temperature,
+                    api_key=self.settings.openai_api_key
+                )
+            
+            # Reconfigure query engine with new LLM
+            self._setup_query_engine()
+            
+            logger.success(f"✅ Successfully switched to {model_name}")
+            
+        except Exception as e:
+            logger.error(f"❌ Failed to switch model: {e}")
+            raise
     
     def chat(
         self,
@@ -260,6 +354,41 @@ class QueryEngine:
         except Exception as e:
             logger.error(f"❌ Search error: {e}")
             return []
+    
+    def get_stats(self) -> Dict:
+        """
+        Get statistics about the vector database
+        
+        Returns:
+            Dictionary with stats (total_nodes, db_path, collection_name)
+        """
+        try:
+            # Get ChromaDB collection
+            chroma_client = chromadb.PersistentClient(
+                path=self.settings.chroma_db_path,
+                settings=ChromaSettings(anonymized_telemetry=False)
+            )
+            
+            collection_name = self.settings.get_collection_name()
+            
+            try:
+                chroma_collection = chroma_client.get_collection(name=collection_name)
+                node_count = chroma_collection.count()
+            except:
+                node_count = 0
+            
+            return {
+                'total_nodes': node_count,
+                'db_path': self.settings.chroma_db_path,
+                'collection_name': collection_name
+            }
+        except Exception as e:
+            logger.error(f"Error getting stats: {e}")
+            return {
+                'total_nodes': 0,
+                'db_path': self.settings.chroma_db_path,
+                'collection_name': self.settings.get_collection_name()
+            }
 
 
 def main():

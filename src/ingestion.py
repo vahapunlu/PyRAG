@@ -6,8 +6,9 @@ This module reads PDFs, extracts tables, and indexes them into ChromaDB.
 
 import os
 import re
+import threading
 from pathlib import Path
-from typing import List, Optional, Dict, Tuple
+from typing import List, Optional, Dict, Tuple, Callable
 import pymupdf4llm
 import chromadb
 from chromadb.config import Settings as ChromaSettings
@@ -27,7 +28,7 @@ from llama_index.llms.openai import OpenAI
 from llama_index.vector_stores.chroma import ChromaVectorStore
 
 from loguru import logger
-from src.utils import get_settings, setup_logger, validate_pdf_files
+from src.utils import get_settings, setup_logger, validate_files, load_document_categories
 
 
 class DocumentIngestion:
@@ -166,71 +167,99 @@ class DocumentIngestion:
         
         return section_info
     
-    def parse_pdf_with_tables(self, pdf_path: Path) -> List[Document]:
+    def parse_file(self, file_path: Path, categories: Optional[List[str]] = None) -> List[Document]:
         """
-        Read PDF and preserve tables in Markdown format
+        Read file (PDF, TXT, MD) and convert to Documents
         
         Args:
-            pdf_path: Path to PDF file
+            file_path: Path to file
+            categories: List of document categories for metadata
             
         Returns:
             List of LlamaIndex Documents
         """
-        logger.info(f"📖 Reading PDF: {pdf_path.name}")
+        logger.info(f"📖 Reading file: {file_path.name}")
+
+        # Try to override categories/projects from stored per-file mapping (by filename)
+        stored_mapping = load_document_categories()
+        file_key = file_path.name
+        file_project = None
+        if file_key in stored_mapping:
+            entry = stored_mapping[file_key]
+            file_category = entry.get("category")
+            file_project = entry.get("project")
+            categories = [file_category] if file_category else None
+            logger.info(f"   Using stored category for {file_key}: {file_category}")
+            if file_project:
+                logger.info(f"   Using stored project for {file_key}: {file_project}")
+        elif categories:
+            logger.info(f"   Categories: {', '.join(categories)}")
         
         try:
-            # Table-aware reading with PyMuPDF4LLM
-            # This library converts tables to Markdown format
-            md_text = pymupdf4llm.to_markdown(
-                str(pdf_path),
-                page_chunks=True,  # Chunk by page
-                write_images=False,  # Skip images for now
-                table_strategy="lines_strict"  # Use table lines
-            )
-            
             documents = []
             
-            # Track last seen section for pages without explicit section
-            last_section_num = ""
-            last_section_title = ""
-            
-            # Create Document for each page
-            for idx, page_data in enumerate(md_text):
-                # PyMuPDF4LLM uses 0-based index, convert to 1-based page number
-                page_num = idx + 1
-                page_text = page_data.get("text", "")
-                
-                # Extract section information from page text
-                section_info = self.extract_section_info(page_text)
-                
-                # Update tracking if new section found
-                if section_info['section_number']:
-                    last_section_num = section_info['section_number']
-                    last_section_title = section_info['section_title']
-                
-                # Add metadata
-                metadata = {
-                    "file_name": pdf_path.name,
-                    "file_path": str(pdf_path),
-                    "page_label": str(page_num),
-                    "page_number": page_num,
-                    "source": pdf_path.stem,  # Use filename without extension
-                    "section_number": last_section_num,
-                    "section_title": last_section_title
-                }
-                
-                doc = Document(
-                    text=page_text,
-                    metadata=metadata
+            # Handle PDF files
+            if file_path.suffix.lower() == '.pdf':
+                # Table-aware reading with PyMuPDF4LLM
+                md_text = pymupdf4llm.to_markdown(
+                    str(file_path),
+                    page_chunks=True,
+                    write_images=False,
+                    table_strategy="lines_strict"
                 )
                 
-                documents.append(doc)
+                last_section_num = ""
+                last_section_title = ""
+                
+                for idx, page_data in enumerate(md_text):
+                    page_num = idx + 1
+                    page_text = page_data.get("text", "")
+                    section_info = self.extract_section_info(page_text)
+                    
+                    if section_info['section_number']:
+                        last_section_num = section_info['section_number']
+                        last_section_title = section_info['section_title']
+                    
+                    metadata = {
+                        "file_name": file_path.name,
+                        "document_name": file_path.stem,
+                        "file_path": str(file_path),
+                        "page_label": str(page_num),
+                        "page_number": page_num,
+                        "source": file_path.stem,
+                        "section_number": last_section_num,
+                        "section_title": last_section_title,
+                        "categories": ", ".join(categories) if categories else "Uncategorized",
+                        "project_name": file_project or "N/A",
+                    }
+                    
+                    documents.append(Document(text=page_text, metadata=metadata))
             
-            logger.success(f"✅ Processed {len(documents)} pages: {pdf_path.name}")
+            # Handle Text and Markdown files
+            elif file_path.suffix.lower() in ['.txt', '.md']:
+                with open(file_path, 'r', encoding='utf-8') as f:
+                    text = f.read()
+                
+                metadata = {
+                    "file_name": file_path.name,
+                    "document_name": file_path.stem,
+                    "file_path": str(file_path),
+                    "source": file_path.stem,
+                    "categories": ", ".join(categories) if categories else "Uncategorized",
+                    "project_name": file_project or "N/A",
+                }
+                
+                documents.append(Document(text=text, metadata=metadata))
+            
+            else:
+                logger.warning(f"⚠️ Unsupported file type: {file_path.suffix}")
+                return []
+            
+            logger.success(f"✅ Processed {len(documents)} chunks/pages: {file_path.name}")
             return documents
             
         except Exception as e:
-            logger.error(f"❌ PDF reading error ({pdf_path.name}): {e}")
+            logger.error(f"❌ File reading error ({file_path.name}): {e}")
             return []
     
     def create_semantic_chunks(self, documents: List[Document]) -> List[Document]:
@@ -259,24 +288,33 @@ class DocumentIngestion:
         logger.success(f"✅ {len(documents)} documents → {len(nodes)} nodes")
         return nodes
     
-    def ingest_documents(self, force_reindex: bool = False) -> VectorStoreIndex:
+    def ingest_documents(self, force_reindex: bool = False, categories: Optional[List[str]] = None, 
+                        progress_callback: Optional[Callable[[str, float], None]] = None,
+                        stop_event: Optional[threading.Event] = None) -> VectorStoreIndex:
         """
-        Main ETL function: Read PDFs and load into database
+        Main ETL function: Read files and load into database
         
         Args:
             force_reindex: If True, delete existing index and rebuild
+            categories: List of document categories
+            progress_callback: Function to call with (status_message, progress_percent)
+            stop_event: Event to check for cancellation
             
         Returns:
             Created or loaded index
         """
         logger.info("🚀 Starting document ingestion...")
         
+        if categories:
+            logger.info(f"📋 Document categories: {', '.join(categories)}")
+        
         # Check existing index
         existing_count = self.chroma_collection.count()
         
         if existing_count > 0 and not force_reindex:
             logger.info(f"ℹ️  Found existing index ({existing_count} nodes)")
-            logger.info("💡 Use force_reindex=True to rebuild from scratch")
+            if progress_callback:
+                progress_callback("Existing index found. Loading...", 100)
             
             # Load existing index
             storage_context = StorageContext.from_defaults(
@@ -290,25 +328,50 @@ class DocumentIngestion:
             logger.success("✅ Existing index loaded")
             return index
         
-        # Find PDF files
-        pdf_files = validate_pdf_files()
+        # Find files
+        files = validate_files()
         
-        if not pdf_files:
-            logger.error("❌ No PDF files found. Aborting.")
+        if not files:
+            logger.error("❌ No supported files found. Aborting.")
+            if progress_callback:
+                progress_callback("No files found!", 0)
             return None
         
-        # Read all PDFs
+        # Read all files with categories
         all_documents = []
-        for pdf_path in pdf_files:
-            docs = self.parse_pdf_with_tables(pdf_path)
+        total_files = len(files)
+        
+        for idx, file_path in enumerate(files):
+            # Check for cancellation
+            if stop_event and stop_event.is_set():
+                logger.warning("🛑 Ingestion cancelled by user")
+                if progress_callback:
+                    progress_callback("Cancelled by user.", 0)
+                return None
+                
+            # Update progress
+            if progress_callback:
+                percent = int((idx / total_files) * 50)  # First 50% is reading
+                progress_callback(f"Reading {file_path.name} ({idx+1}/{total_files})...", percent)
+            
+            docs = self.parse_file(file_path, categories=categories)
             all_documents.extend(docs)
         
         if not all_documents:
             logger.error("❌ No documents could be read!")
+            if progress_callback:
+                progress_callback("Failed to read documents.", 0)
             return None
         
         logger.info(f"📚 Total {len(all_documents)} documents ready")
         
+        if progress_callback:
+            progress_callback(f"Creating index from {len(all_documents)} chunks...", 60)
+            
+        # Check cancellation before expensive indexing
+        if stop_event and stop_event.is_set():
+            return None
+            
         # Create storage context
         storage_context = StorageContext.from_defaults(
             vector_store=self.vector_store
@@ -324,6 +387,9 @@ class DocumentIngestion:
             show_progress=True
         )
         
+        if progress_callback:
+            progress_callback("Indexing complete!", 100)
+            
         # Statistics
         final_count = self.chroma_collection.count()
         logger.success(f"✅ Indexing complete!")
