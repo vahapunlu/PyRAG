@@ -181,8 +181,8 @@ class QueryEngine:
                 metadata_filter_list.append(MetadataFilter(key="document_name", value=document_filter, operator=FilterOperator.EQ))
             
             if category_filter:
-                # Category filter needs to handle comma-separated values
-                metadata_filter_list.append(MetadataFilter(key="categories", value=category_filter, operator=FilterOperator.CONTAINS))
+                # Category filter - use EQ for exact match
+                metadata_filter_list.append(MetadataFilter(key="categories", value=category_filter, operator=FilterOperator.EQ))
             
             if project_filter:
                 metadata_filter_list.append(MetadataFilter(key="project_name", value=project_filter, operator=FilterOperator.EQ))
@@ -226,7 +226,7 @@ class QueryEngine:
                 answer_text = "I found relevant information but couldn't generate a response. Please try rephrasing your question."
             
             result = {
-                "answer": answer_text,
+                "response": answer_text,
                 "sources": [],
                 "metadata": {
                     "question": question,
@@ -237,11 +237,22 @@ class QueryEngine:
             # Add source documents
             if return_sources and hasattr(response, 'source_nodes'):
                 for idx, node in enumerate(response.source_nodes, 1):
+                    # Extract document name and page from metadata
+                    metadata = node.metadata
+                    # Debug logging
+                    logger.info(f"Source {idx} metadata keys: {list(metadata.keys())}")
+                    logger.info(f"  document_name: {metadata.get('document_name')}")
+                    logger.info(f"  file_name: {metadata.get('file_name')}")
+                    doc_name = metadata.get('document_name', metadata.get('file_name', 'Unknown'))
+                    page_num = metadata.get('page_label', metadata.get('page', 'N/A'))
+                    
                     source = {
                         "rank": idx,
+                        "document": doc_name,
+                        "page": page_num,
                         "text": node.text[:300] + "...",  # First 300 characters
                         "score": node.score if hasattr(node, 'score') else None,
-                        "metadata": node.metadata
+                        "metadata": metadata
                     }
                     result["sources"].append(source)
                 
@@ -253,9 +264,10 @@ class QueryEngine:
         except Exception as e:
             logger.error(f"❌ Query error: {e}")
             return {
-                "answer": f"Sorry, an error occurred: {str(e)}",
+                "response": f"Sorry, an error occurred: {str(e)}",
                 "sources": [],
-                "metadata": {"error": str(e)}
+                "metadata": {"error": str(e)},
+                "error": str(e)
             }
     
     def switch_model(self, model_name: str):

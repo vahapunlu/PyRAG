@@ -185,7 +185,7 @@ async def query_endpoint(request: QueryRequest):
         ]
         
         response = QueryResponse(
-            answer=result["answer"],
+            answer=result.get("response", result.get("answer", "")),  # Support both keys for backward compatibility
             sources=sources,
             metadata=result.get("metadata", {})
         )

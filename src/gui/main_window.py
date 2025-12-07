@@ -236,15 +236,26 @@ class PyRAGApp(ctk.CTk):
     
     def _display_response(self, response):
         """Display query response"""
-        self.chat.append_message(response['response'], "assistant")
+        # Check if response has error
+        if 'error' in response:
+            error_msg = f"❌ Error: {response['error']}"
+            self.chat.append_message(error_msg, "system")
+            return
         
-        if response.get('sources'):
-            sources_text = "\n📚 Sources:\n"
-            for i, source in enumerate(response['sources'][:3], 1):
-                doc_name = source.get('document', 'Unknown')
-                page = source.get('page', 'N/A')
-                sources_text += f"   {i}. {doc_name} (Page {page})\n"
-            self.chat.append_message(sources_text, "source")
+        # Display normal response
+        if 'response' in response:
+            self.chat.append_message(response['response'], "assistant")
+        
+            if response.get('sources'):
+                sources_text = "\n📚 Sources:\n"
+                for i, source in enumerate(response['sources'][:3], 1):
+                    doc_name = source.get('document', 'Unknown')
+                    page = source.get('page', 'N/A')
+                    sources_text += f"   {i}. {doc_name} (Page {page})\n"
+                self.chat.append_message(sources_text, "source")
+        else:
+            # Fallback if response structure is unexpected
+            self.chat.append_message("⚠️ Received unexpected response format.", "system")
     
     def open_new_document_dialog(self):
         """Open new document dialog"""

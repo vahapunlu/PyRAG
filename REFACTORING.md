@@ -8,12 +8,15 @@ Eski `app_gui.py` (2165 satır) şu modüllere ayrıldı:
 
 ```
 src/gui/
-├── __init__.py          # Module exports
-├── constants.py         # Constants, colors, config (143 lines)
-├── main_window.py       # Main application window (270 lines)
-├── sidebar.py           # Sidebar component (235 lines)
-├── chat.py              # Chat area component (140 lines)
-└── dialogs.py           # Dialog windows (545 lines)
+├── __init__.py                    # Module exports  
+├── constants.py                   # Constants, colors, config (119 lines)
+├── main_window.py                 # Main application window (335 lines)
+├── sidebar.py                     # Sidebar component (174 lines)
+├── chat.py                        # Chat area component (381 lines)
+├── dialogs.py                     # Dialog import hub (14 lines)
+├── new_document_dialog.py         # New document dialog (~530 lines)
+├── settings_dialog.py             # Settings dialog (~340 lines)
+└── database_manager_dialog.py    # Database manager (~410 lines)
 ```
 
 ### 🔧 Her Modülün Sorumluluğu
@@ -53,14 +56,28 @@ src/gui/
 - Chat clear fonksiyonu
 
 #### `dialogs.py`
-- NewDocumentDialog: Dosya ekleme ve indexleme
-  - File list with dropdowns (Project, Category)
-  - Real-time status indicators
-  - Background indexing with progress
-- SettingsDialog: Kategori ve proje yönetimi
-  - Click-to-select workflow
-  - Add/delete categories
-  - Add/delete projects
+- Import hub for all dialog windows
+- Clean module interface
+
+#### `new_document_dialog.py`
+- NewDocumentDialog sınıfı
+- Two-row file layout (metadata + progress)
+- Real-time status indicators with progress bars
+- Background indexing with threading
+- Shows page count and chunk count for each document
+- No auto-close after completion
+
+#### `settings_dialog.py`
+- SettingsDialog sınıfı
+- Kategori ve proje yönetimi
+- Click-to-select workflow
+- Add/delete operations
+
+#### `database_manager_dialog.py`
+- DatabaseManagerDialog sınıfı
+- Document metadata editing
+- CRUD operations on ChromaDB
+- Double confirmation for critical operations
 
 ### 🚀 Kullanım
 

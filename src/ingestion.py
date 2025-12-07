@@ -398,6 +398,60 @@ class DocumentIngestion:
         
         return index
     
+    def ingest_single_file(self, file_path: str, category: str = "Uncategorized", 
+                          project: str = "N/A") -> dict:
+        """
+        Index a single file into the existing collection
+        
+        Args:
+            file_path: Path to the file to index
+            category: Document category
+            project: Project name
+            
+        Returns:
+            Dict with success status and chunk count: {"success": bool, "chunks": int}
+        """
+        try:
+            path = Path(file_path)
+            logger.info(f"📄 Indexing single file: {path.name}")
+            
+            # Parse file with category
+            docs = self.parse_file(path, categories=[category])
+            
+            if not docs:
+                logger.error(f"❌ Failed to parse {path.name}")
+                return {"success": False, "chunks": 0}
+            
+            # Add project metadata to all documents
+            for doc in docs:
+                doc.metadata["project_name"] = project
+            
+            chunk_count = len(docs)
+            logger.info(f"📚 Parsed {chunk_count} chunks from {path.name}")
+            
+            # Create storage context
+            storage_context = StorageContext.from_defaults(
+                vector_store=self.vector_store
+            )
+            
+            # Load existing index
+            existing_index = VectorStoreIndex.from_vector_store(
+                self.vector_store,
+                storage_context=storage_context
+            )
+            
+            # Insert new documents into existing index
+            logger.info("🔄 Adding to vector index...")
+            for doc in docs:
+                existing_index.insert(doc)
+            
+            logger.success(f"✅ Successfully indexed {path.name} ({chunk_count} chunks)")
+            return {"success": True, "chunks": chunk_count}
+            
+        except Exception as e:
+            logger.error(f"❌ Failed to index {file_path}: {e}")
+            return {"success": False, "chunks": 0}
+    
     def get_index_stats(self) -> dict:
         """Get information about current index"""
         try:
