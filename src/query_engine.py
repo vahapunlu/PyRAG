@@ -32,6 +32,7 @@ from src.feedback_postprocessor import get_feedback_postprocessor
 from src.query_analyzer import get_query_analyzer
 from src.bm25_searcher import get_bm25_searcher
 from src.graph_retriever import get_graph_retriever
+from src.response_cache import get_response_cache
 
 
 class QueryEngine:
@@ -39,12 +40,14 @@ class QueryEngine:
     Processes user queries and generates answers
     """
     
-    def __init__(self, use_cache: bool = True, use_expansion: bool = True):
+    def __init__(self, use_cache: bool = True, use_expansion: bool = True, use_response_cache: bool = True):
         self.settings = get_settings()
         self.use_cache = use_cache
         self.use_expansion = use_expansion
+        self.use_response_cache = use_response_cache
         self.cache = get_cache() if use_cache else None
         self.expander = get_expander() if use_expansion else None
+        self.response_cache = get_response_cache() if use_response_cache else None
         self.feedback_manager = get_feedback_manager()
         self.query_analyzer = get_query_analyzer()
         self.bm25_searcher = get_bm25_searcher()
@@ -260,6 +263,18 @@ class QueryEngine:
         
         logger.info(f"🔍 Query: '{question}'")
         
+        # Check response cache first (works with filters)
+        if self.use_response_cache and self.response_cache:
+            cache_filters = {
+                'document': document_filter,
+                'category': category_filter,
+                'project': project_filter
+            }
+            cached_response = self.response_cache.get(question, cache_filters)
+            if cached_response:
+                logger.success(f"⚡ RESPONSE CACHE HIT! (age: {cached_response['metadata'].get('cache_age_seconds', 0):.0f}s)")
+                return cached_response
+        
         # Analyze query to determine optimal retrieval strategy
         query_analysis = self.query_analyzer.analyze(question)
         logger.info(f"   🧠 Intent: {query_analysis['intent'].value}")
@@ -272,7 +287,7 @@ class QueryEngine:
         if project_filter:
             logger.info(f"   📁 Project filter: {project_filter}")
         
-        # Check cache first (only if no filters applied)
+        # Check semantic cache (only if no filters applied)
         if self.use_cache and self.cache and not any([document_filter, category_filter, project_filter]):
             cached_result = self.cache.get(question)
             if cached_result:
@@ -438,13 +453,22 @@ class QueryEngine:
                 
                 logger.info(f"📚 Used {len(result['sources'])} source document(s)")
             
-            # Cache the result (only if no filters applied)
+            # Cache the semantic result (only if no filters applied)
             if self.use_cache and self.cache and not any([document_filter, category_filter, project_filter]):
                 self.cache.set(
                     query=question,
                     answer=answer_text,
                     sources=result.get("sources")
                 )
+            
+            # Cache the complete response (works with filters)
+            if self.use_response_cache and self.response_cache:
+                cache_filters = {
+                    'document': document_filter,
+                    'category': category_filter,
+                    'project': project_filter
+                }
+                self.response_cache.set(question, result, cache_filters)
             
             logger.success("✅ Answer generated")
             return result
