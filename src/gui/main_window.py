@@ -161,7 +161,8 @@ class PyRAGApp(ctk.CTk):
                 query_analysis = {
                     'intent': metadata.get('query_intent', 'general'),
                     'weights': metadata.get('query_weights', {}),
-                    'retrieval_info': metadata.get('retrieval_info', {})
+                    'retrieval_info': metadata.get('retrieval_info', {}),
+                    'graph_info': metadata.get('graph_info')
                 }
             
             # Display response on main thread

@@ -31,6 +31,7 @@ from src.feedback_manager import get_feedback_manager
 from src.feedback_postprocessor import get_feedback_postprocessor
 from src.query_analyzer import get_query_analyzer
 from src.bm25_searcher import get_bm25_searcher
+from src.graph_retriever import get_graph_retriever
 
 
 class QueryEngine:
@@ -47,6 +48,7 @@ class QueryEngine:
         self.feedback_manager = get_feedback_manager()
         self.query_analyzer = get_query_analyzer()
         self.bm25_searcher = get_bm25_searcher()
+        self.graph_retriever = get_graph_retriever()
         self._setup_llama_index()
         self._load_index()
         self._index_bm25()  # Index documents for keyword search
@@ -347,7 +349,18 @@ class QueryEngine:
                 query=query_to_use
             )
             
-            # Step 4: Create query engine with blended results
+            # Step 4: Enhance with graph cross-references (if available)
+            graph_info = None
+            if self.graph_retriever and self.graph_retriever.enabled:
+                graph_data = self.graph_retriever.get_cross_references(
+                    query=query_to_use,
+                    max_hops=2
+                )
+                if graph_data['references']:
+                    graph_info = graph_data
+                    logger.info(f"   🕸️ Graph: {len(graph_info['references'])} cross-references found")
+            
+            # Step 5: Create query engine with blended results
             response_synthesizer = get_response_synthesizer(
                 response_mode="compact",
                 structured_answer_filtering=False
@@ -388,7 +401,8 @@ class QueryEngine:
                         "semantic_nodes": len(semantic_nodes),
                         "bm25_nodes": len(bm25_results),
                         "blended_nodes": len(blended_nodes)
-                    }
+                    },
+                    "graph_info": graph_info if graph_info else None
                 }
             }
             

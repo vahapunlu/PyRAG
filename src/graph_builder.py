@@ -1,0 +1,257 @@
+"""
+Graph Builder
+
+Automatically builds knowledge graph from ChromaDB documents.
+Extracts references and creates nodes/relationships in Neo4j.
+"""
+
+from typing import List, Dict, Optional
+from loguru import logger
+from src.reference_extractor import get_reference_extractor
+from src.graph_manager import get_graph_manager
+import chromadb
+from chromadb.config import Settings as ChromaSettings
+
+
+class GraphBuilder:
+    """
+    Build knowledge graph from document collection
+    
+    Process:
+    1. Get all documents from ChromaDB
+    2. Extract references using ReferenceExtractor
+    3. Create nodes in Neo4j (documents, sections, standards)
+    4. Create relationships (CONTAINS, REFERS_TO)
+    """
+    
+    def __init__(self, chroma_path: str, collection_name: str):
+        """
+        Initialize graph builder
+        
+        Args:
+            chroma_path: Path to ChromaDB
+            collection_name: Collection name
+        """
+        self.chroma_path = chroma_path
+        self.collection_name = collection_name
+        self.reference_extractor = get_reference_extractor()
+        self.graph_manager = get_graph_manager()
+        
+        if not self.graph_manager:
+            raise ValueError("Graph manager not configured. Check .env.neo4j file.")
+        
+        logger.info(f"✅ Graph Builder initialized for collection: {collection_name}")
+    
+    def build_graph(self, clear_existing: bool = False):
+        """
+        Build complete knowledge graph from ChromaDB
+        
+        Args:
+            clear_existing: Clear existing graph before building (default: False)
+        """
+        if clear_existing:
+            logger.warning("⚠️ Clearing existing graph...")
+            self.graph_manager.clear_graph()
+        
+        logger.info("🏗️ Building knowledge graph...")
+        
+        # Step 1: Create indexes
+        self.graph_manager.create_indexes()
+        
+        # Step 2: Get all documents from ChromaDB
+        documents = self._get_documents_from_chroma()
+        logger.info(f"   Found {len(documents)} unique documents")
+        
+        # Step 3: Process each document
+        stats = {
+            'documents': 0,
+            'sections': 0,
+            'standards': 0,
+            'relationships': 0
+        }
+        
+        for doc_name, doc_data in documents.items():
+            self._process_document(doc_name, doc_data, stats)
+        
+        # Step 4: Summary
+        graph_stats = self.graph_manager.get_graph_statistics()
+        logger.success(f"✅ Graph built successfully!")
+        logger.info(f"   Nodes: {graph_stats['total_nodes']} (Docs: {graph_stats['documents']}, "
+                   f"Sections: {graph_stats['sections']}, Standards: {graph_stats['standards']})")
+        logger.info(f"   Relationships: {graph_stats['relationships']}")
+        
+        return graph_stats
+    
+    def _get_documents_from_chroma(self) -> Dict[str, Dict]:
+        """
+        Get all documents from ChromaDB collection
+        
+        Returns:
+            Dict of {doc_name: {metadata, chunks}}
+        """
+        # Connect to ChromaDB
+        chroma_client = chromadb.PersistentClient(
+            path=self.chroma_path,
+            settings=ChromaSettings(anonymized_telemetry=False)
+        )
+        
+        collection = chroma_client.get_collection(name=self.collection_name)
+        
+        # Get all data
+        results = collection.get(include=['metadatas', 'documents'])
+        
+        # Group by document
+        documents = {}
+        for i, metadata in enumerate(results['metadatas']):
+            doc_name = metadata.get('document_name', metadata.get('file_name', 'Unknown'))
+            
+            if doc_name not in documents:
+                documents[doc_name] = {
+                    'name': doc_name,
+                    'metadata': {
+                        'file_name': metadata.get('file_name', ''),
+                        'standard_no': metadata.get('standard_no', ''),
+                        'date': metadata.get('date', ''),
+                        'description': metadata.get('description', ''),
+                    },
+                    'chunks': [],
+                    'sections': set()
+                }
+            
+            # Add chunk
+            chunk_text = results['documents'][i]
+            documents[doc_name]['chunks'].append({
+                'text': chunk_text,
+                'metadata': metadata
+            })
+            
+            # Track sections
+            section = metadata.get('section_number', '')
+            if section:
+                documents[doc_name]['sections'].add(section)
+        
+        return documents
+    
+    def _process_document(self, doc_name: str, doc_data: Dict, stats: Dict):
+        """
+        Process a single document: create nodes and relationships
+        
+        Args:
+            doc_name: Document name
+            doc_data: Document data (metadata, chunks, sections)
+            stats: Statistics dict to update
+        """
+        logger.info(f"📄 Processing: {doc_name}")
+        
+        # Step 1: Create document node
+        doc_properties = {
+            'file_name': doc_data['metadata']['file_name'],
+            'standard_no': doc_data['metadata']['standard_no'],
+            'date': doc_data['metadata']['date'],
+            'description': doc_data['metadata']['description'],
+            'total_chunks': len(doc_data['chunks']),
+            'total_sections': len(doc_data['sections'])
+        }
+        self.graph_manager.create_document_node(doc_name, doc_properties)
+        stats['documents'] += 1
+        
+        # Step 2: Extract references from all chunks
+        all_text = ' '.join([chunk['text'] for chunk in doc_data['chunks']])
+        references = self.reference_extractor.extract_all(all_text)
+        
+        logger.info(f"   Found {references['summary']['total_standards']} standard references")
+        logger.info(f"   Found {references['summary']['total_sections']} section references")
+        
+        # Step 3: Create standard nodes and relationships
+        seen_standards = set()
+        for std_ref in references['standards']:
+            std_name = std_ref['full']
+            
+            if std_name not in seen_standards:
+                seen_standards.add(std_name)
+                
+                # Create standard node
+                std_properties = {
+                    'type': std_ref['type'],
+                    'number': std_ref['number']
+                }
+                self.graph_manager.create_standard_node(std_name, std_properties)
+                stats['standards'] += 1
+                
+                # Create REFERS_TO relationship
+                self.graph_manager.create_refers_to_relationship(
+                    doc_name,
+                    std_name,
+                    source_type="DOCUMENT"
+                )
+                stats['relationships'] += 1
+        
+        # Step 4: Create section nodes
+        for section_number in sorted(doc_data['sections']):
+            # Find section metadata from chunks
+            section_meta = self._find_section_metadata(section_number, doc_data['chunks'])
+            
+            section_properties = {
+                'title': section_meta.get('section_title', ''),
+                'page': section_meta.get('page_number', ''),
+            }
+            
+            self.graph_manager.create_section_node(
+                doc_name,
+                section_number,
+                section_properties
+            )
+            stats['sections'] += 1
+            
+            # Check if this section refers to any standards
+            section_chunks = [c for c in doc_data['chunks'] 
+                            if c['metadata'].get('section_number') == section_number]
+            section_text = ' '.join([c['text'] for c in section_chunks])
+            section_refs = self.reference_extractor.extract_standards(section_text)
+            
+            for std_ref in section_refs[:3]:  # Limit to top 3 per section
+                std_name = std_ref['full']
+                if std_name in seen_standards:
+                    self.graph_manager.create_refers_to_relationship(
+                        section_number,
+                        std_name,
+                        source_type="SECTION",
+                        properties={'page': section_meta.get('page_number', '')}
+                    )
+                    stats['relationships'] += 1
+    
+    def _find_section_metadata(self, section_number: str, chunks: List[Dict]) -> Dict:
+        """Find metadata for a specific section"""
+        for chunk in chunks:
+            if chunk['metadata'].get('section_number') == section_number:
+                return {
+                    'section_title': chunk['metadata'].get('section_title', ''),
+                    'page_number': chunk['metadata'].get('page_number', ''),
+                }
+        return {}
+    
+    def get_build_statistics(self) -> Dict:
+        """Get current graph statistics"""
+        if not self.graph_manager:
+            return {}
+        return self.graph_manager.get_graph_statistics()
+
+
+def build_graph_from_chroma(chroma_path: str = "./chroma_db", 
+                           collection_name: str = "mep_standards",
+                           clear_existing: bool = False) -> Dict:
+    """
+    Convenience function to build graph from ChromaDB
+    
+    Args:
+        chroma_path: Path to ChromaDB
+        collection_name: Collection name
+        clear_existing: Clear existing graph
+        
+    Returns:
+        Graph statistics
+    """
+    builder = GraphBuilder(chroma_path, collection_name)
+    stats = builder.build_graph(clear_existing=clear_existing)
+    builder.graph_manager.close()
+    return stats

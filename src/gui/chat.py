@@ -554,6 +554,14 @@ class ChatArea:
             blended_count = retrieval_info.get('blended_nodes', 0)
             analysis_text += f" | Retrieved: {semantic_count}+{bm25_count}→{blended_count} nodes"
         
+        # Add graph info if available
+        graph_info = analysis.get('graph_info')
+        if graph_info and graph_info.get('references'):
+            ref_count = len(graph_info['references'])
+            entities = graph_info.get('entities_found', [])
+            if entities:
+                analysis_text += f" | 🕸️ Graph: {ref_count} cross-refs found"
+        
         analysis_text += "\n"
         
         # Insert analysis (using system style for now)
