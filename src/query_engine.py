@@ -35,6 +35,9 @@ from src.query_analyzer import get_query_analyzer
 from src.bm25_searcher import get_bm25_searcher
 from src.graph_retriever import get_graph_retriever
 from src.response_cache import get_response_cache
+from src.query_history import get_query_history
+from src.export_manager import get_export_manager
+from src.graph_visualizer import get_graph_visualizer
 
 
 class QueryEngine:
@@ -54,6 +57,10 @@ class QueryEngine:
         self.query_analyzer = get_query_analyzer()
         self.bm25_searcher = get_bm25_searcher()
         self.graph_retriever = get_graph_retriever()
+        self.query_history = get_query_history()
+        self.export_manager = get_export_manager()
+        # Graph visualizer initialized on-demand (requires Neo4j credentials)
+        self.graph_visualizer = None
         self._setup_llama_index()
         self._load_index()
         self._index_bm25()  # Index documents for keyword search
@@ -275,6 +282,21 @@ class QueryEngine:
             cached_response = self.response_cache.get(question, cache_filters)
             if cached_response:
                 logger.success(f"⚡ RESPONSE CACHE HIT! (age: {cached_response['metadata'].get('cache_age_seconds', 0):.0f}s)")
+                
+                # Save cache hit to history
+                history_metadata = {
+                    'cache_hit': True,
+                    'cache_age': cached_response['metadata'].get('cache_age_seconds', 0),
+                    'filters': cache_filters
+                }
+                self.query_history.add_query(
+                    query=question,
+                    response=cached_response['response'],
+                    sources=cached_response.get('sources', []),
+                    metadata=history_metadata,
+                    duration=0.001  # Instant from cache
+                )
+                
                 return cached_response
         
         # Analyze query to determine optimal retrieval strategy
@@ -486,6 +508,21 @@ class QueryEngine:
                     'project': project_filter
                 }
                 self.response_cache.set(question, result, cache_filters)
+            
+            # Save to query history
+            query_duration = time.time() - start_time
+            history_metadata = {
+                'cache_hit': False,
+                'filters': cache_filters if self.use_response_cache else None,
+                'query_type': self.query_analyzer.analyze_query(question).get('query_type') if self.query_analyzer else None
+            }
+            self.query_history.add_query(
+                query=question,
+                response=answer_text,
+                sources=result.get("sources", []),
+                metadata=history_metadata,
+                duration=query_duration
+            )
             
             logger.success("✅ Answer generated")
             return result
@@ -765,6 +802,108 @@ class QueryEngine:
     def get_recent_feedback(self, limit: int = 10) -> List[Dict]:
         """Get recent feedback entries"""
         return self.feedback_manager.get_recent_feedback(limit)
+    
+    # Query History Methods
+    def get_query_history(self, limit: int = 20) -> List[Dict]:
+        """Get recent query history"""
+        return self.query_history.get_recent(limit)
+    
+    def search_history(self, search_term: str, limit: int = 20) -> List[Dict]:
+        """Search query history"""
+        return self.query_history.search(search_term, limit)
+    
+    def clear_history(self):
+        """Clear all query history"""
+        self.query_history.clear_all()
+    
+    def get_history_statistics(self) -> Dict:
+        """Get history statistics"""
+        return self.query_history.get_statistics()
+    
+    # Export Methods
+    def export_result(self, query: str, response: str, sources: List[Dict],
+                     format: str = 'markdown', metadata: Dict = None) -> Optional[str]:
+        """
+        Export query result to file
+        
+        Args:
+            query: User query
+            response: System response
+            sources: Source documents
+            format: 'markdown', 'pdf', or 'word'
+            metadata: Additional metadata
+            
+        Returns:
+            Path to exported file
+        """
+        if format == 'markdown':
+            return self.export_manager.export_to_markdown(query, response, sources, metadata)
+        elif format == 'pdf':
+            return self.export_manager.export_to_pdf(query, response, sources, metadata)
+        elif format == 'word':
+            return self.export_manager.export_to_word(query, response, sources, metadata)
+        else:
+            logger.error(f"❌ Unknown export format: {format}")
+            return None
+    
+    def export_all_formats(self, query: str, response: str, sources: List[Dict],
+                          metadata: Dict = None) -> Dict[str, Optional[str]]:
+        """Export to all available formats"""
+        return self.export_manager.export_all_formats(query, response, sources, metadata)
+    
+    # Graph Visualization Methods
+    def init_graph_visualizer(self):
+        """Initialize graph visualizer (requires Neo4j)"""
+        if not self.graph_visualizer:
+            self.graph_visualizer = get_graph_visualizer(
+                neo4j_uri=self.settings.neo4j_uri,
+                neo4j_user=self.settings.neo4j_user,
+                neo4j_password=self.settings.neo4j_password
+            )
+    
+    def visualize_graph(self, limit: int = 100) -> Optional[str]:
+        """
+        Create graph visualization
+        
+        Args:
+            limit: Maximum nodes to include
+            
+        Returns:
+            Path to saved image
+        """
+        if not self.graph_visualizer:
+            self.init_graph_visualizer()
+        
+        if self.graph_visualizer:
+            return self.graph_visualizer.visualize_graph(limit)
+        return None
+    
+    def visualize_query_context(self, query: str, sources: List[Dict]) -> Optional[str]:
+        """
+        Visualize query context (query + sources)
+        
+        Args:
+            query: User query
+            sources: Source documents
+            
+        Returns:
+            Path to saved image
+        """
+        if not self.graph_visualizer:
+            self.init_graph_visualizer()
+        
+        if self.graph_visualizer:
+            return self.graph_visualizer.visualize_query_context(query, sources)
+        return None
+    
+    def get_graph_statistics(self) -> Dict:
+        """Get graph statistics"""
+        if not self.graph_visualizer:
+            self.init_graph_visualizer()
+        
+        if self.graph_visualizer:
+            return self.graph_visualizer.get_graph_statistics()
+        return {}
 
 
 def main():
