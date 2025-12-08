@@ -7,6 +7,8 @@ Intelligent Q&A with hybrid search (Semantic + BM25) and reranking.
 from typing import List, Optional, Dict
 import chromadb
 from chromadb.config import Settings as ChromaSettings
+from concurrent.futures import ThreadPoolExecutor, as_completed
+import time
 
 from llama_index.core import (
     VectorStoreIndex,
@@ -332,10 +334,11 @@ class QueryEngine:
             if project_filter:
                 metadata_filter_list.append(MetadataFilter(key="project_name", value=project_filter, operator=FilterOperator.EQ))
             
-            # Hybrid Search: Combine semantic + keyword results
+            # Hybrid Search: Parallel execution of semantic + keyword + graph
             query_to_use = expanded_query
+            start_time = time.time()
             
-            # Step 1: Get semantic search results
+            # Prepare semantic retriever
             if metadata_filter_list:
                 metadata_filters = MetadataFilters(filters=metadata_filter_list)
                 semantic_retriever = VectorIndexRetriever(
@@ -349,31 +352,47 @@ class QueryEngine:
                     similarity_top_k=15
                 )
             
-            semantic_nodes = semantic_retriever.retrieve(query_to_use)
-            logger.info(f"   🔍 Semantic search: {len(semantic_nodes)} nodes")
+            # Step 1: Execute searches in parallel
+            semantic_nodes = []
+            bm25_results = []
+            graph_info = None
             
-            # Step 2: Get BM25 keyword results
-            bm25_results = self.bm25_searcher.search(query_to_use, top_k=15)
-            logger.info(f"   🔑 BM25 search: {len(bm25_results)} nodes")
+            with ThreadPoolExecutor(max_workers=3) as executor:
+                # Submit parallel tasks
+                future_semantic = executor.submit(semantic_retriever.retrieve, query_to_use)
+                future_bm25 = executor.submit(self.bm25_searcher.search, query_to_use, 15)
+                future_graph = None
+                if self.graph_retriever and self.graph_retriever.enabled:
+                    future_graph = executor.submit(
+                        self.graph_retriever.get_cross_references,
+                        query_to_use,
+                        2  # max_hops
+                    )
+                
+                # Collect results as they complete
+                for future in as_completed([f for f in [future_semantic, future_bm25, future_graph] if f]):
+                    if future == future_semantic:
+                        semantic_nodes = future.result()
+                        logger.info(f"   🔍 Semantic search: {len(semantic_nodes)} nodes")
+                    elif future == future_bm25:
+                        bm25_results = future.result()
+                        logger.info(f"   🔑 BM25 search: {len(bm25_results)} nodes")
+                    elif future == future_graph:
+                        graph_data = future.result()
+                        if graph_data and graph_data.get('references'):
+                            graph_info = graph_data
+                            logger.info(f"   🕸️ Graph: {len(graph_info['references'])} cross-references found")
             
-            # Step 3: Adaptive blending based on query analysis
+            parallel_time = time.time() - start_time
+            logger.info(f"   ⚡ Parallel retrieval: {parallel_time:.3f}s")
+            
+            # Step 2: Adaptive blending based on query analysis
             blended_nodes = self._blend_results(
                 semantic_nodes=semantic_nodes,
                 bm25_results=bm25_results,
                 weights=query_analysis['weights'],
                 query=query_to_use
             )
-            
-            # Step 4: Enhance with graph cross-references (if available)
-            graph_info = None
-            if self.graph_retriever and self.graph_retriever.enabled:
-                graph_data = self.graph_retriever.get_cross_references(
-                    query=query_to_use,
-                    max_hops=2
-                )
-                if graph_data['references']:
-                    graph_info = graph_data
-                    logger.info(f"   🕸️ Graph: {len(graph_info['references'])} cross-references found")
             
             # Step 5: Create query engine with blended results
             response_synthesizer = get_response_synthesizer(
@@ -421,36 +440,34 @@ class QueryEngine:
                 }
             }
             
-            # Add source documents
+            # Add source documents (parallel processing)
             if return_sources and hasattr(response, 'source_nodes'):
-                for idx, node in enumerate(response.source_nodes, 1):
-                    # Extract document name and page from metadata
+                def process_source(idx_node):
+                    idx, node = idx_node
                     metadata = node.metadata
-                    # Debug logging
-                    logger.info(f"Source {idx} metadata keys: {list(metadata.keys())}")
-                    logger.info(f"  document_name: {metadata.get('document_name')}")
-                    logger.info(f"  file_name: {metadata.get('file_name')}")
                     doc_name = metadata.get('document_name', metadata.get('file_name', 'Unknown'))
                     page_num = metadata.get('page_label', metadata.get('page', 'N/A'))
                     
-                    # Extract custom metadata
-                    standard_no = metadata.get('standard_no', '')
-                    date = metadata.get('date', '')
-                    description = metadata.get('description', '')
-                    
-                    source = {
+                    return {
                         "rank": idx,
                         "document": doc_name,
                         "page": page_num,
-                        "standard_no": standard_no,
-                        "date": date,
-                        "description": description,
-                        "text": node.text[:300] + "...",  # First 300 characters
+                        "standard_no": metadata.get('standard_no', ''),
+                        "date": metadata.get('date', ''),
+                        "description": metadata.get('description', ''),
+                        "text": node.text[:300] + "...",
                         "score": node.score if hasattr(node, 'score') else None,
                         "metadata": metadata
                     }
-                    result["sources"].append(source)
                 
+                # Process sources in parallel
+                with ThreadPoolExecutor(max_workers=4) as executor:
+                    sources = list(executor.map(
+                        process_source,
+                        enumerate(response.source_nodes, 1)
+                    ))
+                
+                result["sources"] = sources
                 logger.info(f"📚 Used {len(result['sources'])} source document(s)")
             
             # Cache the semantic result (only if no filters applied)
