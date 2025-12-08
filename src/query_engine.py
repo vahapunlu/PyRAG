@@ -41,6 +41,9 @@ class QueryEngine:
         """Configure LlamaIndex global settings"""
         logger.info("🔧 Configuring Query Engine...")
         
+        # Get system prompt
+        system_prompt = create_system_prompt()
+        
         # Determine which LLM to use based on model name
         if "deepseek" in self.settings.llm_model.lower():
             # DeepSeek native integration
@@ -48,7 +51,8 @@ class QueryEngine:
             Settings.llm = DeepSeek(
                 model=self.settings.llm_model,
                 temperature=self.settings.llm_temperature,
-                api_key=self.settings.deepseek_api_key
+                api_key=self.settings.deepseek_api_key,
+                system_prompt=system_prompt
             )
         else:
             # Default to OpenAI
@@ -56,7 +60,8 @@ class QueryEngine:
             Settings.llm = OpenAI(
                 model=self.settings.llm_model,
                 temperature=self.settings.llm_temperature,
-                api_key=self.settings.openai_api_key
+                api_key=self.settings.openai_api_key,
+                system_prompt=system_prompt
             )
         
         # Embedding settings (use same model as ingestion for consistency)
@@ -112,22 +117,50 @@ class QueryEngine:
         # Retriever: Fetches relevant nodes from database
         retriever = VectorIndexRetriever(
             index=self.index,
-            similarity_top_k=5,  # Fetch top 5 most relevant results
+            similarity_top_k=15,  # Fetch more candidates for reranking
         )
         
         # Response Synthesizer: Combines nodes and sends to LLM
         response_synthesizer = get_response_synthesizer(
-            response_mode="compact",  # Concise answers
-            structured_answer_filtering=True
+            response_mode="compact",
+            structured_answer_filtering=False  # Don't filter, just answer
         )
         
-        # Query Engine: Combines all components (no postprocessor for now)
+        # Query Engine: Simple and reliable - NO postprocessors
         self.query_engine = RetrieverQueryEngine(
             retriever=retriever,
             response_synthesizer=response_synthesizer
         )
         
         logger.success("✅ Query engine ready")
+    
+    def _expand_query(self, query: str) -> str:
+        """
+        Expand query with engineering synonyms for better retrieval
+        """
+        expansions = {
+            "cable": "cable conductor wire",
+            "impedance": "impedance resistance ohm",
+            "voltage": "voltage potential V",
+            "current": "current ampere amp A",
+            "maximum": "maximum max limit",
+            "minimum": "minimum min",
+            "fire": "fire safety emergency evacuation",
+            "alarm": "alarm detection warning system",
+            "protection": "protection safety guard",
+            "circuit": "circuit loop branch",
+            "breaker": "breaker MCB MCCB RCD",
+            "standard": "standard specification requirement code",
+        }
+        
+        query_lower = query.lower()
+        for key, expansion in expansions.items():
+            if key in query_lower and expansion not in query_lower:
+                # Add expansion but keep original query intact
+                query = f"{query} ({expansion})"
+                break  # Only expand once to avoid noise
+        
+        return query
     
     def query(
         self, 
@@ -172,13 +205,20 @@ class QueryEngine:
         if project_filter:
             logger.info(f"   📁 Project filter: {project_filter}")
         
+        # Query expansion: Add engineering synonyms for better recall
+        expanded_query = self._expand_query(question)
+        if expanded_query != question:
+            logger.debug(f"   ✨ Expanded query: '{expanded_query}'")
+        
         try:
             # Build metadata filters if provided
             from llama_index.core.vector_stores import MetadataFilters, MetadataFilter, FilterOperator
             
             metadata_filter_list = []
             if document_filter:
-                metadata_filter_list.append(MetadataFilter(key="document_name", value=document_filter, operator=FilterOperator.EQ))
+                # Use 'file_name' - this is the actual field that exists in all nodes
+                # Expected format: "LDA.pdf", "NSAI - National Rules for Electrical Installations (Edition 5.0).pdf"
+                metadata_filter_list.append(MetadataFilter(key="file_name", value=document_filter, operator=FilterOperator.EQ))
             
             if category_filter:
                 # Category filter - use EQ for exact match
@@ -188,18 +228,21 @@ class QueryEngine:
                 metadata_filter_list.append(MetadataFilter(key="project_name", value=project_filter, operator=FilterOperator.EQ))
             
             # Create custom retriever with filters if needed
+            # Use expanded query directly (system prompt handled by LLM settings)
+            query_to_use = expanded_query
+            
             if metadata_filter_list:
                 metadata_filters = MetadataFilters(filters=metadata_filter_list)
                 retriever = VectorIndexRetriever(
                     index=self.index,
-                    similarity_top_k=5,
+                    similarity_top_k=15,  # More candidates
                     filters=metadata_filters
                 )
                 
                 # Create temporary query engine with filtered retriever
                 response_synthesizer = get_response_synthesizer(
                     response_mode="compact",
-                    structured_answer_filtering=True
+                    structured_answer_filtering=False
                 )
                 
                 temp_query_engine = RetrieverQueryEngine(
@@ -207,10 +250,10 @@ class QueryEngine:
                     response_synthesizer=response_synthesizer
                 )
                 
-                response = temp_query_engine.query(question)
+                response = temp_query_engine.query(query_to_use)
             else:
                 # Use default query engine
-                response = self.query_engine.query(question)
+                response = self.query_engine.query(query_to_use)
             
             # Debug log
             logger.debug(f"Response type: {type(response)}")

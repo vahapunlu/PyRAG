@@ -18,7 +18,7 @@ from ..ingestion import DocumentIngestion
 from .constants import *
 from .sidebar import Sidebar
 from .chat import ChatArea
-from .dialogs import NewDocumentDialog, SettingsDialog, DatabaseManagerDialog
+from .dialogs import NewDocumentDialog, SettingsDialog, DatabaseManagerDialog, CrossReferenceDialog, AutoSummaryDialog, AutoSummaryDialog
 
 
 class PyRAGApp(ctk.CTk):
@@ -63,6 +63,8 @@ class PyRAGApp(ctk.CTk):
             'clear_chat': self.clear_chat,
             'open_settings': self.open_settings_dialog,
             'open_database': self.open_database_manager,
+            'open_cross_reference': self.open_cross_reference_dialog,
+            'open_auto_summary': self.open_auto_summary_dialog,
         })
         
         # Chat area with filter callback
@@ -187,7 +189,8 @@ class PyRAGApp(ctk.CTk):
                 
                 # Process metadata
                 for metadata in results.get('metadatas', []):
-                    doc_name = metadata.get('document_name')
+                    # Use file_name for consistency
+                    doc_name = metadata.get('file_name', '')
                     if doc_name and doc_name != 'Unknown':
                         if doc_name not in doc_metadata:
                             doc_metadata[doc_name] = {
@@ -283,8 +286,114 @@ class PyRAGApp(ctk.CTk):
         dialog = DatabaseManagerDialog(self, self.query_engine)
         self.wait_window(dialog)
         
-        # Reload filter options after database changes
+        # Reload filters after potential metadata changes
         self._load_filter_options()
+    
+    def open_cross_reference_dialog(self):
+        """Open cross-reference analysis dialog"""
+        if not self.query_engine:
+            messagebox.showwarning(
+                "Not Ready",
+                "System is still initializing. Please wait."
+            )
+            return
+        
+        # Get available documents from the index
+        try:
+            stats = self.query_engine.get_stats()
+            if stats.get('total_nodes', 0) == 0:
+                messagebox.showinfo(
+                    "No Documents",
+                    "Please add documents before using cross-reference analysis."
+                )
+                return
+            
+            # Get unique document names from collection metadata
+            documents = set()
+            try:
+                collection = self.query_engine.chroma_collection
+                if collection:
+                    # Get all metadata
+                    result = collection.get(include=['metadatas'])
+                    if result and result.get('metadatas'):
+                        for metadata in result['metadatas']:
+                            # Use file_name directly (with extension) - this is what query_engine expects
+                            file_name = metadata.get('file_name', '')
+                            if file_name and file_name != 'Unknown':
+                                documents.add(file_name)
+                        
+                        logger.info(f"Found {len(documents)} unique documents: {documents}")
+            except Exception as e:
+                logger.error(f"Error extracting document names: {e}")
+            
+            if len(documents) < 2:
+                messagebox.showinfo(
+                    "Insufficient Documents",
+                    "At least 2 documents are required for cross-reference analysis.\n"
+                    f"Currently loaded: {len(documents)} document(s)"
+                )
+                return
+            
+            dialog = CrossReferenceDialog(self, self.query_engine, sorted(documents))
+            
+        except Exception as e:
+            logger.error(f"Error opening cross-reference dialog: {e}")
+            messagebox.showerror(
+                "Error",
+                f"Failed to open cross-reference dialog:\n{str(e)}"
+            )
+    
+    def open_auto_summary_dialog(self):
+        """Open auto-summary generator dialog"""
+        if not self.query_engine:
+            messagebox.showwarning(
+                "Not Ready",
+                "System is still initializing. Please wait."
+            )
+            return
+        
+        # Get available documents from the index
+        try:
+            stats = self.query_engine.get_stats()
+            if stats.get('total_nodes', 0) == 0:
+                messagebox.showinfo(
+                    "No Documents",
+                    "Please add documents before using auto-summary."
+                )
+                return
+            
+            # Get unique document names from collection metadata
+            documents = set()
+            try:
+                collection = self.query_engine.chroma_collection
+                if collection:
+                    # Get all metadata
+                    result = collection.get(include=['metadatas'])
+                    if result and result.get('metadatas'):
+                        for metadata in result['metadatas']:
+                            file_name = metadata.get('file_name', '')
+                            if file_name and file_name != 'Unknown':
+                                documents.add(file_name)
+                        
+                        logger.info(f"Found {len(documents)} unique documents: {documents}")
+            except Exception as e:
+                logger.error(f"Error extracting document names: {e}")
+            
+            if len(documents) == 0:
+                messagebox.showinfo(
+                    "No Documents",
+                    "No documents found. Please add documents before using auto-summary."
+                )
+                return
+            
+            dialog = AutoSummaryDialog(self, self.query_engine, sorted(documents))
+            
+        except Exception as e:
+            logger.error(f"Error opening auto-summary dialog: {e}")
+            messagebox.showerror(
+                "Error",
+                f"Failed to open auto-summary dialog:\n{str(e)}"
+            )
     
     def show_statistics(self):
         """Show system statistics"""

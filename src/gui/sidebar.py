@@ -139,6 +139,28 @@ class Sidebar:
         
         ctk.CTkButton(
             self.frame,
+            text="🔗 Cross-Reference",
+            command=self.callbacks.get('open_cross_reference'),
+            height=BUTTON_HEIGHTS['secondary'],
+            font=ctk.CTkFont(size=FONT_SIZES['normal']),
+            fg_color="transparent",
+            border_width=2,
+            corner_radius=8
+        ).grid(row=6, column=0, padx=20, pady=SPACING['minor'], sticky="ew")
+        
+        ctk.CTkButton(
+            self.frame,
+            text="📄 Auto-Summary",
+            command=self.callbacks.get('open_auto_summary'),
+            height=BUTTON_HEIGHTS['secondary'],
+            font=ctk.CTkFont(size=FONT_SIZES['normal']),
+            fg_color="transparent",
+            border_width=2,
+            corner_radius=8
+        ).grid(row=7, column=0, padx=20, pady=SPACING['minor'], sticky="ew")
+        
+        ctk.CTkButton(
+            self.frame,
             text="⚙️ Settings",
             command=self.callbacks.get('open_settings'),
             height=BUTTON_HEIGHTS['secondary'],
@@ -146,7 +168,7 @@ class Sidebar:
             fg_color="transparent",
             border_width=2,
             corner_radius=8
-        ).grid(row=6, column=0, padx=20, pady=SPACING['minor'], sticky="ew")
+        ).grid(row=8, column=0, padx=20, pady=SPACING['minor'], sticky="ew")
         
         ctk.CTkButton(
             self.frame,
@@ -157,7 +179,7 @@ class Sidebar:
             fg_color="transparent",
             border_width=2,
             corner_radius=8
-        ).grid(row=7, column=0, padx=20, pady=(SPACING['minor'], SPACING['major']), sticky="ew")
+        ).grid(row=9, column=0, padx=20, pady=(SPACING['minor'], SPACING['major']), sticky="ew")
     
     def _create_footer(self):
         """Create version info"""
