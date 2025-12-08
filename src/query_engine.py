@@ -38,6 +38,16 @@ from src.response_cache import get_response_cache
 from src.query_history import get_query_history
 from src.export_manager import get_export_manager
 from src.graph_visualizer import get_graph_visualizer
+from src.error_handler import (
+    get_error_handler, 
+    ErrorCategory, 
+    ErrorSeverity, 
+    with_retry, 
+    with_fallback, 
+    safe_execute,
+    validate_input
+)
+from src.health_check import get_health_check, HealthStatus
 
 
 class QueryEngine:
@@ -50,54 +60,100 @@ class QueryEngine:
         self.use_cache = use_cache
         self.use_expansion = use_expansion
         self.use_response_cache = use_response_cache
-        self.cache = get_cache() if use_cache else None
-        self.expander = get_expander() if use_expansion else None
-        self.response_cache = get_response_cache() if use_response_cache else None
-        self.feedback_manager = get_feedback_manager()
-        self.query_analyzer = get_query_analyzer()
-        self.bm25_searcher = get_bm25_searcher()
-        self.graph_retriever = get_graph_retriever()
-        self.query_history = get_query_history()
-        self.export_manager = get_export_manager()
+        self.error_handler = get_error_handler()
+        
+        # Initialize components with error handling
+        self.cache = safe_execute(get_cache, error_handler=self.error_handler, 
+                                  category=ErrorCategory.DATABASE) if use_cache else None
+        self.expander = safe_execute(get_expander, error_handler=self.error_handler,
+                                    category=ErrorCategory.PROCESSING) if use_expansion else None
+        self.response_cache = safe_execute(get_response_cache, error_handler=self.error_handler,
+                                          category=ErrorCategory.DATABASE) if use_response_cache else None
+        self.feedback_manager = safe_execute(get_feedback_manager, error_handler=self.error_handler,
+                                            category=ErrorCategory.DATABASE)
+        self.query_analyzer = safe_execute(get_query_analyzer, error_handler=self.error_handler,
+                                          category=ErrorCategory.PROCESSING)
+        self.bm25_searcher = safe_execute(get_bm25_searcher, error_handler=self.error_handler,
+                                         category=ErrorCategory.PROCESSING)
+        self.graph_retriever = safe_execute(get_graph_retriever, error_handler=self.error_handler,
+                                           category=ErrorCategory.NETWORK)
+        self.query_history = safe_execute(get_query_history, error_handler=self.error_handler,
+                                         category=ErrorCategory.DATABASE)
+        self.export_manager = safe_execute(get_export_manager, error_handler=self.error_handler,
+                                          category=ErrorCategory.PROCESSING)
         # Graph visualizer initialized on-demand (requires Neo4j credentials)
         self.graph_visualizer = None
+        
+        # Health monitoring
+        self.health_check = get_health_check()
+        self._register_health_checks()
+        
         self._setup_llama_index()
         self._load_index()
         self._index_bm25()  # Index documents for keyword search
         self._setup_query_engine()
     
+    def _register_health_checks(self):
+        """Register component health checks"""
+        # Register cache
+        if self.cache:
+            self.health_check.register_component('semantic_cache', 
+                lambda: self.cache is not None)
+        
+        # Register response cache
+        if self.response_cache:
+            self.health_check.register_component('response_cache',
+                lambda: self.response_cache is not None)
+        
+        # Register BM25
+        if self.bm25_searcher:
+            self.health_check.register_component('bm25_search',
+                lambda: self.bm25_searcher is not None)
+        
+        # Register graph
+        if self.graph_retriever and self.graph_retriever.enabled:
+            self.health_check.register_component('graph_retriever',
+                lambda: self.graph_retriever.enabled)
+    
     def _setup_llama_index(self):
         """Configure LlamaIndex global settings"""
         logger.info("🔧 Configuring Query Engine...")
         
-        # Get system prompt
-        system_prompt = create_system_prompt()
-        
-        # Determine which LLM to use based on model name
-        if "deepseek" in self.settings.llm_model.lower():
-            # DeepSeek native integration
-            logger.info("📡 Using DeepSeek API (90% cheaper!)...")
-            Settings.llm = DeepSeek(
-                model=self.settings.llm_model,
-                temperature=self.settings.llm_temperature,
-                api_key=self.settings.deepseek_api_key,
-                system_prompt=system_prompt
+        try:
+            # Get system prompt
+            system_prompt = create_system_prompt()
+            
+            # Determine which LLM to use based on model name
+            if "deepseek" in self.settings.llm_model.lower():
+                # DeepSeek native integration
+                logger.info("📡 Using DeepSeek API (90% cheaper!)...")
+                Settings.llm = DeepSeek(
+                    model=self.settings.llm_model,
+                    temperature=self.settings.llm_temperature,
+                    api_key=self.settings.deepseek_api_key,
+                    system_prompt=system_prompt
+                )
+            else:
+                # Default to OpenAI
+                logger.info("📡 Using OpenAI API...")
+                Settings.llm = OpenAI(
+                    model=self.settings.llm_model,
+                    temperature=self.settings.llm_temperature,
+                    api_key=self.settings.openai_api_key,
+                    system_prompt=system_prompt
+                )
+            
+            # Embedding settings (use same model as ingestion for consistency)
+            Settings.embed_model = OpenAIEmbedding(
+                model=self.settings.embedding_model,
+                api_key=self.settings.openai_api_key
             )
-        else:
-            # Default to OpenAI
-            logger.info("📡 Using OpenAI API...")
-            Settings.llm = OpenAI(
-                model=self.settings.llm_model,
-                temperature=self.settings.llm_temperature,
-                api_key=self.settings.openai_api_key,
-                system_prompt=system_prompt
-            )
-        
-        # Embedding settings (use same model as ingestion for consistency)
-        Settings.embed_model = OpenAIEmbedding(
-            model=self.settings.embedding_model,
-            api_key=self.settings.openai_api_key
-        )
+            
+        except Exception as e:
+            self.error_handler.log_error(e, ErrorCategory.CONFIGURATION, ErrorSeverity.CRITICAL,
+                                        {'model': self.settings.llm_model})
+            logger.critical(f"💥 Failed to setup LLM: {e}")
+            raise
     
     def _load_index(self):
         """Load existing vector index"""
@@ -262,6 +318,19 @@ class QueryEngine:
                 "metadata": Dict
             }
         """
+        # Input validation
+        try:
+            validate_input(question, str, allow_none=False, min_length=1, max_length=5000)
+        except ValueError as e:
+            self.error_handler.log_error(e, ErrorCategory.VALIDATION, ErrorSeverity.MEDIUM, 
+                                        {'question': question})
+            return {
+                "response": f"Invalid query: {str(e)}",
+                "sources": [],
+                "metadata": {"error": "validation_error", "message": str(e)},
+                "error": str(e)
+            }
+        
         # Handle new filters dict format
         if filters:
             document_filter = filters.get('document', document_filter)
@@ -528,11 +597,51 @@ class QueryEngine:
             return result
             
         except Exception as e:
+            # Log error with context
+            self.error_handler.log_error(
+                error=e,
+                category=ErrorCategory.PROCESSING,
+                severity=ErrorSeverity.HIGH,
+                context={
+                    'query': question,
+                    'filters': {
+                        'document': document_filter,
+                        'category': category_filter,
+                        'project': project_filter
+                    },
+                    'return_sources': return_sources
+                }
+            )
+            
+            # Save error to history
+            error_metadata = {
+                'error': True,
+                'error_type': type(e).__name__,
+                'error_message': str(e)
+            }
+            if self.query_history:
+                try:
+                    self.query_history.add_query(
+                        query=question,
+                        response=f"Error: {str(e)}",
+                        sources=[],
+                        metadata=error_metadata,
+                        duration=time.time() - start_time if 'start_time' in locals() else 0
+                    )
+                except:
+                    pass  # Don't fail on history save
+            
             logger.error(f"❌ Query error: {e}")
+            
+            # Return user-friendly error message
             return {
-                "response": f"Sorry, an error occurred: {str(e)}",
+                "response": "I apologize, but I encountered an error processing your query. Please try again or rephrase your question.",
                 "sources": [],
-                "metadata": {"error": str(e)},
+                "metadata": {
+                    "error": str(e),
+                    "error_type": type(e).__name__,
+                    "suggestion": "Try simplifying your query or check your filters"
+                },
                 "error": str(e)
             }
     
@@ -904,6 +1013,25 @@ class QueryEngine:
         if self.graph_visualizer:
             return self.graph_visualizer.get_graph_statistics()
         return {}
+    
+    # Health & Monitoring Methods
+    def get_system_health(self) -> Dict:
+        """Get overall system health"""
+        return self.health_check.get_system_health()
+    
+    def get_error_statistics(self) -> Dict:
+        """Get error statistics"""
+        return self.error_handler.get_error_stats()
+    
+    def get_component_status(self, component_name: str) -> str:
+        """Get specific component status"""
+        status = self.health_check.check_component(component_name)
+        return status.value if status else "unknown"
+    
+    def is_degraded_mode(self) -> bool:
+        """Check if system is running in degraded mode"""
+        health = self.health_check.get_system_health()
+        return health['overall_status'] in [HealthStatus.DEGRADED, HealthStatus.UNHEALTHY]
 
 
 def main():
