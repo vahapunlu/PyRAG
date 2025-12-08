@@ -583,7 +583,7 @@ class QueryEngine:
             history_metadata = {
                 'cache_hit': False,
                 'filters': cache_filters if self.use_response_cache else None,
-                'query_type': self.query_analyzer.analyze_query(question).get('query_type') if self.query_analyzer else None
+                'query_type': self.query_analyzer.analyze(question).get('intent') if self.query_analyzer else None
             }
             self.query_history.add_query(
                 query=question,
