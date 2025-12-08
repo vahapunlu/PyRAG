@@ -29,6 +29,7 @@ class ChatArea:
         self.last_query = None
         self.last_response = None
         self.last_sources = []
+        self.last_query_analysis = None  # Store query analysis data
         
         # Active filters
         self.active_filters = {
@@ -444,6 +445,9 @@ class ChatArea:
             self.last_response = text
             if sources:
                 self.last_sources = sources
+            # Show query analysis if available
+            if hasattr(self, 'last_query_analysis') and self.last_query_analysis:
+                self._display_query_analysis()
             # Show feedback buttons
             if self.feedback_callback:
                 self.feedback_frame.grid()
@@ -514,12 +518,60 @@ class ChatArea:
             # Hide feedback buttons
             self.feedback_frame.grid_remove()
     
+    def _display_query_analysis(self):
+        """Display query analysis information"""
+        if not self.last_query_analysis:
+            return
+        
+        analysis = self.last_query_analysis
+        
+        # Format analysis text
+        intent = analysis.get('intent', 'unknown')
+        weights = analysis.get('weights', {})
+        retrieval_info = analysis.get('retrieval_info', {})
+        
+        # Create readable intent name
+        intent_names = {
+            'table_lookup': 'Table Lookup',
+            'definition': 'Definition',
+            'reference': 'Standard Reference',
+            'calculation': 'Calculation',
+            'general': 'General Query'
+        }
+        intent_display = intent_names.get(intent, intent.title())
+        
+        # Format weights
+        semantic_w = weights.get('semantic', 0.5)
+        keyword_w = weights.get('keyword', 0.3)
+        
+        # Build analysis text
+        analysis_text = f"\n🧠 Query Analysis: {intent_display}"
+        analysis_text += f" | Strategy: Semantic {semantic_w:.0%}/Keyword {keyword_w:.0%}"
+        
+        if retrieval_info:
+            semantic_count = retrieval_info.get('semantic_nodes', 0)
+            bm25_count = retrieval_info.get('bm25_nodes', 0)
+            blended_count = retrieval_info.get('blended_nodes', 0)
+            analysis_text += f" | Retrieved: {semantic_count}+{bm25_count}→{blended_count} nodes"
+        
+        analysis_text += "\n"
+        
+        # Insert analysis (using system style for now)
+        self.chat_display.configure(state="normal")
+        self.chat_display.insert("end", analysis_text)
+        self.chat_display.configure(state="disabled")
+    
+    def set_query_analysis(self, analysis):
+        """Store query analysis data"""
+        self.last_query_analysis = analysis
+    
     def clear_chat(self):
         """Clear all chat messages"""
         self.chat_display.configure(state="normal")
         self.chat_display.delete("1.0", "end")
         self.chat_display.configure(state="disabled")
         self.chat_history = []
+        self.last_query_analysis = None
         self.display_welcome_message()
     
     def get_input(self):

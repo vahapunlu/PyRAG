@@ -154,8 +154,18 @@ class PyRAGApp(ctk.CTk):
             # Get response
             response = self.query_engine.query(question, filters=filter_dict)
             
+            # Extract query analysis from metadata
+            query_analysis = None
+            if 'metadata' in response:
+                metadata = response['metadata']
+                query_analysis = {
+                    'intent': metadata.get('query_intent', 'general'),
+                    'weights': metadata.get('query_weights', {}),
+                    'retrieval_info': metadata.get('retrieval_info', {})
+                }
+            
             # Display response on main thread
-            self.after(0, self._display_response, response)
+            self.after(0, self._display_response, response, query_analysis)
             
         except Exception as e:
             error_msg = f"❌ Error: {str(e)}"
@@ -253,8 +263,17 @@ class PyRAGApp(ctk.CTk):
             import traceback
             logger.error(traceback.format_exc())
     
-    def _display_response(self, response):
-        """Display query response"""
+    def _display_response(self, response, query_analysis=None):
+        """Display query response
+        
+        Args:
+            response: Query response dict
+            query_analysis: Optional query analysis data
+        """
+        # Store query analysis in chat
+        if query_analysis:
+            self.chat.set_query_analysis(query_analysis)
+        
         # Check if response has error
         if 'error' in response:
             error_msg = f"❌ Error: {response['error']}"

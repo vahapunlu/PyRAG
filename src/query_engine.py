@@ -381,7 +381,14 @@ class QueryEngine:
                 "sources": [],
                 "metadata": {
                     "question": question,
-                    "model": self.settings.llm_model
+                    "model": self.settings.llm_model,
+                    "query_intent": query_analysis['intent'].value if hasattr(query_analysis['intent'], 'value') else str(query_analysis['intent']),
+                    "query_weights": query_analysis['weights'],
+                    "retrieval_info": {
+                        "semantic_nodes": len(semantic_nodes),
+                        "bm25_nodes": len(bm25_results),
+                        "blended_nodes": len(blended_nodes)
+                    }
                 }
             }
             
