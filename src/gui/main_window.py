@@ -18,7 +18,7 @@ from ..ingestion import DocumentIngestion
 from .constants import *
 from .sidebar import Sidebar
 from .chat import ChatArea
-from .dialogs import NewDocumentDialog, SettingsDialog, DatabaseManagerDialog
+from .dialogs import NewDocumentDialog, SettingsDialog, DatabaseManagerDialog, CrossReferenceDialog, AutoSummaryDialog, AutoSummaryDialog
 
 
 class PyRAGApp(ctk.CTk):
@@ -61,12 +61,15 @@ class PyRAGApp(ctk.CTk):
             'open_new_document': self.open_new_document_dialog,
             'show_statistics': self.show_statistics,
             'clear_chat': self.clear_chat,
+            'clear_cache': self.clear_cache,
             'open_settings': self.open_settings_dialog,
             'open_database': self.open_database_manager,
+            'open_cross_reference': self.open_cross_reference_dialog,
+            'open_auto_summary': self.open_auto_summary_dialog,
         })
         
         # Chat area with filter callback
-        self.chat = ChatArea(self, self.send_message, self.on_quick_filter_change)
+        self.chat = ChatArea(self, self.send_message, self.on_quick_filter_change, self.on_feedback)
     
     def initialize_system(self):
         """Initialize query engine and load existing documents"""
@@ -151,8 +154,19 @@ class PyRAGApp(ctk.CTk):
             # Get response
             response = self.query_engine.query(question, filters=filter_dict)
             
+            # Extract query analysis from metadata
+            query_analysis = None
+            if 'metadata' in response:
+                metadata = response['metadata']
+                query_analysis = {
+                    'intent': metadata.get('query_intent', 'general'),
+                    'weights': metadata.get('query_weights', {}),
+                    'retrieval_info': metadata.get('retrieval_info', {}),
+                    'graph_info': metadata.get('graph_info')
+                }
+            
             # Display response on main thread
-            self.after(0, self._display_response, response)
+            self.after(0, self._display_response, response, query_analysis)
             
         except Exception as e:
             error_msg = f"❌ Error: {str(e)}"
@@ -187,28 +201,44 @@ class PyRAGApp(ctk.CTk):
                 
                 # Process metadata
                 for metadata in results.get('metadatas', []):
-                    doc_name = metadata.get('document_name')
+                    # Use document_name first, fallback to file_name
+                    doc_name = metadata.get('document_name', metadata.get('file_name', ''))
+                    file_name = metadata.get('file_name', doc_name)
+                    
                     if doc_name and doc_name != 'Unknown':
                         if doc_name not in doc_metadata:
+                            # Get standard_no for display, use file_name for search
+                            standard_no = metadata.get('standard_no', '')
+                            # Show only Standard No if available, otherwise show document name
+                            display_name = standard_no if standard_no else doc_name
+                            
                             doc_metadata[doc_name] = {
-                                'name': doc_name,
+                                'name': doc_name,  # Document name
+                                'file_name': file_name,  # Exact file name for filtering
+                                'display_name': display_name,  # Standard No for UI
+                                'standard_no': standard_no,
                                 'categories': set(),
                                 'project': metadata.get('project_name', 'N/A')
                             }
                         
-                        # Add categories
+                        # Add categories (stored as comma-separated string)
                         cats = metadata.get('categories', '')
                         if cats:
                             for cat in cats.split(','):
                                 cat = cat.strip()
-                                if cat:
+                                if cat and cat != 'Uncategorized':
                                     doc_metadata[doc_name]['categories'].add(cat)
+                        
+                        # If no categories found, use default
+                        if not doc_metadata[doc_name]['categories']:
+                            doc_metadata[doc_name]['categories'].add('Uncategorized')
                 
                 # Convert to list format with categories as lists
                 documents = []
                 for doc_name, doc_info in doc_metadata.items():
                     documents.append({
-                        'name': doc_name,
+                        'name': doc_info['file_name'],  # Use file_name for search filter
+                        'display_name': doc_info['display_name'],  # Use display_name for UI
                         'categories': list(doc_info['categories']),
                         'project': doc_info['project']
                     })
@@ -234,8 +264,17 @@ class PyRAGApp(ctk.CTk):
             import traceback
             logger.error(traceback.format_exc())
     
-    def _display_response(self, response):
-        """Display query response"""
+    def _display_response(self, response, query_analysis=None):
+        """Display query response
+        
+        Args:
+            response: Query response dict
+            query_analysis: Optional query analysis data
+        """
+        # Store query analysis in chat
+        if query_analysis:
+            self.chat.set_query_analysis(query_analysis)
+        
         # Check if response has error
         if 'error' in response:
             error_msg = f"❌ Error: {response['error']}"
@@ -251,11 +290,60 @@ class PyRAGApp(ctk.CTk):
                 for i, source in enumerate(response['sources'][:3], 1):
                     doc_name = source.get('document', 'Unknown')
                     page = source.get('page', 'N/A')
-                    sources_text += f"   {i}. {doc_name} (Page {page})\n"
+                    standard_no = source.get('standard_no', '')
+                    date = source.get('date', '')
+                    description = source.get('description', '')
+                    
+                    # Build source line with metadata
+                    source_line = f"   {i}. {doc_name}"
+                    
+                    # Add standard_no if available
+                    if standard_no:
+                        source_line += f" | {standard_no}"
+                    
+                    # Add date if available
+                    if date:
+                        source_line += f" | {date}"
+                    
+                    # Add page
+                    source_line += f" (Page {page})"
+                    
+                    sources_text += source_line + "\n"
+                    
+                    # Add description on separate line if available
+                    if description:
+                        sources_text += f"      💬 \"{description}\"\n"
+                
                 self.chat.append_message(sources_text, "source")
         else:
             # Fallback if response structure is unexpected
             self.chat.append_message("⚠️ Received unexpected response format.", "system")
+    
+    def on_feedback(self, query, response, sources, feedback_type, comment=None):
+        """
+        Handle user feedback
+        
+        Args:
+            query: User query
+            response: AI response
+            sources: Source documents
+            feedback_type: 'positive' or 'negative'
+            comment: Optional user comment
+        """
+        if not self.query_engine:
+            return
+        
+        try:
+            feedback_id = self.query_engine.add_feedback(
+                query=query,
+                response=response,
+                feedback_type=feedback_type,
+                sources=sources,
+                comment=comment
+            )
+            logger.info(f"✅ Feedback recorded (ID: {feedback_id}, Type: {feedback_type})")
+        except Exception as e:
+            logger.error(f"Failed to record feedback: {e}")
     
     def open_new_document_dialog(self):
         """Open new document dialog"""
@@ -283,8 +371,114 @@ class PyRAGApp(ctk.CTk):
         dialog = DatabaseManagerDialog(self, self.query_engine)
         self.wait_window(dialog)
         
-        # Reload filter options after database changes
+        # Reload filters after potential metadata changes
         self._load_filter_options()
+    
+    def open_cross_reference_dialog(self):
+        """Open cross-reference analysis dialog"""
+        if not self.query_engine:
+            messagebox.showwarning(
+                "Not Ready",
+                "System is still initializing. Please wait."
+            )
+            return
+        
+        # Get available documents from the index
+        try:
+            stats = self.query_engine.get_stats()
+            if stats.get('total_nodes', 0) == 0:
+                messagebox.showinfo(
+                    "No Documents",
+                    "Please add documents before using cross-reference analysis."
+                )
+                return
+            
+            # Get unique document names from collection metadata
+            documents = set()
+            try:
+                collection = self.query_engine.chroma_collection
+                if collection:
+                    # Get all metadata
+                    result = collection.get(include=['metadatas'])
+                    if result and result.get('metadatas'):
+                        for metadata in result['metadatas']:
+                            # Use file_name directly (with extension) - this is what query_engine expects
+                            file_name = metadata.get('file_name', '')
+                            if file_name and file_name != 'Unknown':
+                                documents.add(file_name)
+                        
+                        logger.info(f"Found {len(documents)} unique documents: {documents}")
+            except Exception as e:
+                logger.error(f"Error extracting document names: {e}")
+            
+            if len(documents) < 2:
+                messagebox.showinfo(
+                    "Insufficient Documents",
+                    "At least 2 documents are required for cross-reference analysis.\n"
+                    f"Currently loaded: {len(documents)} document(s)"
+                )
+                return
+            
+            dialog = CrossReferenceDialog(self, self.query_engine, sorted(documents))
+            
+        except Exception as e:
+            logger.error(f"Error opening cross-reference dialog: {e}")
+            messagebox.showerror(
+                "Error",
+                f"Failed to open cross-reference dialog:\n{str(e)}"
+            )
+    
+    def open_auto_summary_dialog(self):
+        """Open auto-summary generator dialog"""
+        if not self.query_engine:
+            messagebox.showwarning(
+                "Not Ready",
+                "System is still initializing. Please wait."
+            )
+            return
+        
+        # Get available documents from the index
+        try:
+            stats = self.query_engine.get_stats()
+            if stats.get('total_nodes', 0) == 0:
+                messagebox.showinfo(
+                    "No Documents",
+                    "Please add documents before using auto-summary."
+                )
+                return
+            
+            # Get unique document names from collection metadata
+            documents = set()
+            try:
+                collection = self.query_engine.chroma_collection
+                if collection:
+                    # Get all metadata
+                    result = collection.get(include=['metadatas'])
+                    if result and result.get('metadatas'):
+                        for metadata in result['metadatas']:
+                            file_name = metadata.get('file_name', '')
+                            if file_name and file_name != 'Unknown':
+                                documents.add(file_name)
+                        
+                        logger.info(f"Found {len(documents)} unique documents: {documents}")
+            except Exception as e:
+                logger.error(f"Error extracting document names: {e}")
+            
+            if len(documents) == 0:
+                messagebox.showinfo(
+                    "No Documents",
+                    "No documents found. Please add documents before using auto-summary."
+                )
+                return
+            
+            dialog = AutoSummaryDialog(self, self.query_engine, sorted(documents))
+            
+        except Exception as e:
+            logger.error(f"Error opening auto-summary dialog: {e}")
+            messagebox.showerror(
+                "Error",
+                f"Failed to open auto-summary dialog:\n{str(e)}"
+            )
     
     def show_statistics(self):
         """Show system statistics"""
@@ -299,6 +493,49 @@ class PyRAGApp(ctk.CTk):
             data_dir = Path(settings.data_dir)
             files = list(data_dir.glob("*.pdf")) + list(data_dir.glob("*.txt"))
             total_size = sum(f.stat().st_size for f in files) / (1024 * 1024)
+            
+            # Get cache statistics
+            cache_stats = self.query_engine.get_cache_stats() if self.query_engine else {}
+            cache_enabled = "error" not in cache_stats
+            
+            if cache_enabled:
+                cache_info = f"""
+⚡ SEMANTIC CACHE
+   • Status: Enabled ✅
+   • Cached Queries: {cache_stats.get('total_entries', 0)}
+   • Total Queries: {cache_stats.get('total_queries', 0)}
+   • Cache Hits: {cache_stats.get('cache_hits', 0)} ({cache_stats.get('hit_rate_percent', 0):.1f}%)
+   • Cache Misses: {cache_stats.get('cache_misses', 0)}
+   • Avg Hits/Entry: {cache_stats.get('avg_hits_per_entry', 0):.1f}
+   • Similarity Threshold: {cache_stats.get('similarity_threshold', 0.92):.2f}
+   • TTL: {cache_stats.get('ttl_days', 7):.0f} days
+"""
+            else:
+                cache_info = """
+⚡ SEMANTIC CACHE
+   • Status: Disabled ❌
+"""
+            
+            # Get feedback statistics
+            feedback_stats = self.query_engine.get_feedback_stats() if self.query_engine else {}
+            total_feedback = feedback_stats.get('total_feedback', 0)
+            
+            if total_feedback > 0:
+                satisfaction = feedback_stats.get('satisfaction_rate', 0)
+                feedback_info = f"""
+💬 USER FEEDBACK (Active Learning)
+   • Total Feedback: {total_feedback}
+   • Positive: {feedback_stats.get('positive_count', 0)} 👍
+   • Negative: {feedback_stats.get('negative_count', 0)} 👎
+   • Satisfaction Rate: {satisfaction:.1f}%
+   • Status: Learning from feedback ✅
+"""
+            else:
+                feedback_info = """
+💬 USER FEEDBACK (Active Learning)
+   • No feedback yet
+   • Use 👍/👎 buttons to help improve answers
+"""
             
             stats_text = f"""
 ╔════════════════════════════════════════════╗
@@ -318,11 +555,12 @@ class PyRAGApp(ctk.CTk):
    • LLM: {settings.llm_model}
    • Embedding: {settings.embedding_model}
    • Temperature: {settings.llm_temperature}
-
+{cache_info}{feedback_info}
 💰 ESTIMATED COST (per 1000 queries)
    • DeepSeek LLM: ~$0.27
    • OpenAI Embeddings: ~$0.13
-   • Total: ~$0.40 for 1000 queries
+   • Cache savings: ~{cache_stats.get('hit_rate_percent', 0):.0f}% reduction
+   • Total: ~${0.40 * (1 - cache_stats.get('hit_rate_percent', 0)/100):.2f} for 1000 queries
 """
             messagebox.showinfo("📊 System Statistics", stats_text)
             
@@ -339,6 +577,34 @@ class PyRAGApp(ctk.CTk):
         if result:
             self.chat.clear_chat()
             self.chat.append_message("\n🗑️  Chat history cleared", "system")
+    
+    def clear_cache(self):
+        """Clear semantic cache"""
+        if not self.query_engine:
+            messagebox.showwarning("Warning", "System not initialized yet")
+            return
+        
+        # Get cache stats before clearing
+        cache_stats = self.query_engine.get_cache_stats()
+        total_entries = cache_stats.get('total_entries', 0)
+        
+        if total_entries == 0:
+            messagebox.showinfo("Cache Empty", "Cache is already empty. Nothing to clear.")
+            return
+        
+        result = messagebox.askyesno(
+            "Clear Cache",
+            f"Are you sure you want to clear the semantic cache?\n\n"
+            f"• Cached queries: {total_entries}\n"
+            f"• Cache hits: {cache_stats.get('cache_hits', 0)}\n"
+            f"• Hit rate: {cache_stats.get('hit_rate_percent', 0):.1f}%\n\n"
+            f"This will force all future queries to regenerate answers."
+        )
+        
+        if result:
+            self.query_engine.clear_cache()
+            self.chat.append_message("\n⚡ Semantic cache cleared successfully", "system")
+            messagebox.showinfo("Success", f"Cache cleared!\n\n{total_entries} cached queries removed.")
 
 
 def main():

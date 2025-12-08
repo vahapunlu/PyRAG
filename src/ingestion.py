@@ -22,6 +22,9 @@ from llama_index.core import (
 from llama_index.core.node_parser import (
     SentenceSplitter,
     SemanticSplitterNodeParser,
+    HierarchicalNodeParser,
+    get_leaf_nodes,
+    get_root_nodes,
 )
 from llama_index.embeddings.openai import OpenAIEmbedding
 from llama_index.llms.openai import OpenAI
@@ -366,23 +369,42 @@ class DocumentIngestion:
         logger.info(f"📚 Total {len(all_documents)} documents ready")
         
         if progress_callback:
-            progress_callback(f"Creating index from {len(all_documents)} chunks...", 60)
+            progress_callback(f"Creating hierarchical index from {len(all_documents)} chunks...", 60)
             
         # Check cancellation before expensive indexing
         if stop_event and stop_event.is_set():
             return None
             
+        # Create hierarchical node parser with parent-child relationships
+        logger.info("🔄 Creating hierarchical chunks (parent-child relationships)...")
+        logger.info("   This preserves context by keeping track of document sections")
+        
+        # Hierarchical chunking: Large parent chunks + Small child chunks
+        node_parser = HierarchicalNodeParser.from_defaults(
+            chunk_sizes=[2048, 1024, 512],  # Parent -> Child -> Grandchild
+            chunk_overlap=200
+        )
+        
+        # Parse documents into hierarchical nodes
+        nodes = node_parser.get_nodes_from_documents(all_documents, show_progress=True)
+        
+        # Get leaf nodes (smallest chunks) for indexing
+        leaf_nodes = get_leaf_nodes(nodes)
+        
+        logger.info(f"📊 Created {len(nodes)} total nodes ({len(leaf_nodes)} leaf nodes for indexing)")
+        logger.info(f"   Each leaf node has parent context for better retrieval!")
+        
         # Create storage context
         storage_context = StorageContext.from_defaults(
             vector_store=self.vector_store
         )
         
-        # Create index (embedding + write to database)
-        logger.info("🔄 Creating vector index...")
+        # Create index from leaf nodes (embedding + write to database)
+        logger.info("🔄 Creating vector index with hierarchical structure...")
         logger.info("⏱️  This may take several minutes (OpenAI API calls)...")
         
-        index = VectorStoreIndex.from_documents(
-            all_documents,
+        index = VectorStoreIndex(
+            leaf_nodes,
             storage_context=storage_context,
             show_progress=True
         )
@@ -399,17 +421,21 @@ class DocumentIngestion:
         return index
     
     def ingest_single_file(self, file_path: str, category: str = "Uncategorized", 
-                          project: str = "N/A") -> dict:
+                          project: str = "N/A", standard_no: str = "", 
+                          date: str = "", description: str = "") -> dict:
         """
-        Index a single file into the existing collection
+        Index a single file into the existing collection with hierarchical chunking
         
         Args:
             file_path: Path to the file to index
             category: Document category
             project: Project name
+            standard_no: Standard number (e.g., IEC 60364-5-52)
+            date: Document date (e.g., 2024-03)
+            description: Brief description of the document
             
         Returns:
-            Dict with success status and chunk count: {"success": bool, "chunks": int}
+            Dict with success status and chunk count: {"success": bool, "chunks": int, "leaf_chunks": int}
         """
         try:
             path = Path(file_path)
@@ -420,14 +446,33 @@ class DocumentIngestion:
             
             if not docs:
                 logger.error(f"❌ Failed to parse {path.name}")
-                return {"success": False, "chunks": 0}
+                return {"success": False, "chunks": 0, "leaf_chunks": 0}
             
-            # Add project metadata to all documents
+            # Add metadata to all documents
             for doc in docs:
                 doc.metadata["project_name"] = project
+                if standard_no:
+                    doc.metadata["standard_no"] = standard_no
+                if date:
+                    doc.metadata["date"] = date
+                if description:
+                    doc.metadata["description"] = description
             
-            chunk_count = len(docs)
-            logger.info(f"📚 Parsed {chunk_count} chunks from {path.name}")
+            original_count = len(docs)
+            logger.info(f"📚 Parsed {original_count} pages from {path.name}")
+            
+            # Create hierarchical chunks (same as bulk ingestion)
+            logger.info("🔄 Creating hierarchical chunks...")
+            node_parser = HierarchicalNodeParser.from_defaults(
+                chunk_sizes=[2048, 1024, 512],  # Parent -> Child -> Grandchild
+                chunk_overlap=200
+            )
+            
+            # Parse into hierarchical nodes
+            nodes = node_parser.get_nodes_from_documents(docs, show_progress=False)
+            leaf_nodes = get_leaf_nodes(nodes)
+            
+            logger.info(f"📊 Created {len(nodes)} total nodes ({len(leaf_nodes)} leaf nodes)")
             
             # Create storage context
             storage_context = StorageContext.from_defaults(
@@ -440,17 +485,25 @@ class DocumentIngestion:
                 storage_context=storage_context
             )
             
-            # Insert new documents into existing index
-            logger.info("🔄 Adding to vector index...")
-            for doc in docs:
-                existing_index.insert(doc)
+            # Insert leaf nodes (with parent context) into existing index
+            logger.info("🔄 Adding hierarchical nodes to vector index...")
+            for node in leaf_nodes:
+                existing_index.insert_nodes([node])
             
-            logger.success(f"✅ Successfully indexed {path.name} ({chunk_count} chunks)")
-            return {"success": True, "chunks": chunk_count}
+            logger.success(f"✅ Successfully indexed {path.name}")
+            logger.info(f"   Original pages: {original_count}")
+            logger.info(f"   Hierarchical nodes: {len(nodes)}")
+            logger.info(f"   Indexed leaf nodes: {len(leaf_nodes)}")
+            
+            return {
+                "success": True, 
+                "chunks": len(nodes),
+                "leaf_chunks": len(leaf_nodes)
+            }
             
         except Exception as e:
             logger.error(f"❌ Failed to index {file_path}: {e}")
-            return {"success": False, "chunks": 0}
+            return {"success": False, "chunks": 0, "leaf_chunks": 0}
     
     def get_index_stats(self) -> dict:
         """Get information about current index"""

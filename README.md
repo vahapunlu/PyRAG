@@ -7,10 +7,13 @@
 ## 🎯 Features
 
 - ✅ **Modern Windows GUI**: Professional desktop application with CustomTkinter
+- ✅ **Auto-Summary Engine**: Extract focused information from large specs (150+ pages)
+- ✅ **Cross-Reference Search**: Find matching requirements across multiple documents
+- ✅ **Database Manager**: Visual management of ChromaDB collections and documents
 - ✅ **Table Awareness**: Preserves PDF tables in Markdown format for accurate reading
 - ✅ **Local Database**: All data stays on your computer with ChromaDB
 - ✅ **Hybrid Search**: Semantic + Keyword search for best results
-- ✅ **GPT-4o Support**: Interprets complex technical tables
+- ✅ **GPT-4o/DeepSeek Support**: Interprets complex technical tables (90% cheaper with DeepSeek)
 - ✅ **REST API**: Ready-to-use FastAPI service for React/Flutter
 - ✅ **CLI Tools**: Command-line interface for all operations
 
@@ -89,6 +92,9 @@ python main.py
 **Features:**
 - 🎨 Modern dark theme interface
 - 💬 Natural chat-style Q&A
+- 📄 **Auto-Summary**: Extract topic-focused information from large specs
+- 🔗 **Cross-Reference**: Search across multiple documents simultaneously
+- 🗄️ **Database Manager**: Visual ChromaDB management with metadata editing
 - 📁 Visual PDF management
 - 📊 Real-time statistics
 - ⚡ One-click indexing
@@ -375,12 +381,17 @@ python main.py ingest --force
 
 ## 🚧 Future Plans
 
+- [x] Auto-Summary engine for large documents ✅ **COMPLETED**
+- [x] Cross-Reference search across documents ✅ **COMPLETED**
+- [x] Database Manager with visual tools ✅ **COMPLETED**
+- [x] DeepSeek integration (90% cost reduction) ✅ **COMPLETED**
 - [ ] LlamaParse integration (better table extraction)
 - [ ] Chat history (conversation memory)
 - [ ] Multi-modal (image + diagram analysis)
 - [ ] Turkish embedding model support
 - [ ] Batch processing (multiple document queries)
 - [ ] Web UI (React interface)
+- [ ] Quantity Takeoff (technical drawing analysis)
 
 ---
 

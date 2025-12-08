@@ -31,6 +31,9 @@ tqdm
 customtkinter
 pillow
 
+# PDF Export
+reportlab
+
 # Hybrid Search & Reranking
 rank-bm25
 

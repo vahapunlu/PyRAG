@@ -128,7 +128,7 @@ class Sidebar:
         
         ctk.CTkButton(
             self.frame,
-            text="🗑️ Clear History",
+            text="🗑️ Clear Chat",
             command=self.callbacks.get('clear_chat'),
             height=BUTTON_HEIGHTS['secondary'],
             font=ctk.CTkFont(size=FONT_SIZES['normal']),
@@ -139,6 +139,39 @@ class Sidebar:
         
         ctk.CTkButton(
             self.frame,
+            text="⚡ Clear Cache",
+            command=self.callbacks.get('clear_cache'),
+            height=BUTTON_HEIGHTS['secondary'],
+            font=ctk.CTkFont(size=FONT_SIZES['normal']),
+            fg_color="transparent",
+            border_width=2,
+            corner_radius=8
+        ).grid(row=6, column=0, padx=20, pady=SPACING['minor'], sticky="ew")
+        
+        ctk.CTkButton(
+            self.frame,
+            text="🔗 Cross-Reference",
+            command=self.callbacks.get('open_cross_reference'),
+            height=BUTTON_HEIGHTS['secondary'],
+            font=ctk.CTkFont(size=FONT_SIZES['normal']),
+            fg_color="transparent",
+            border_width=2,
+            corner_radius=8
+        ).grid(row=7, column=0, padx=20, pady=SPACING['minor'], sticky="ew")
+        
+        ctk.CTkButton(
+            self.frame,
+            text="📄 Auto-Summary",
+            command=self.callbacks.get('open_auto_summary'),
+            height=BUTTON_HEIGHTS['secondary'],
+            font=ctk.CTkFont(size=FONT_SIZES['normal']),
+            fg_color="transparent",
+            border_width=2,
+            corner_radius=8
+        ).grid(row=8, column=0, padx=20, pady=SPACING['minor'], sticky="ew")
+        
+        ctk.CTkButton(
+            self.frame,
             text="⚙️ Settings",
             command=self.callbacks.get('open_settings'),
             height=BUTTON_HEIGHTS['secondary'],
@@ -146,7 +179,7 @@ class Sidebar:
             fg_color="transparent",
             border_width=2,
             corner_radius=8
-        ).grid(row=6, column=0, padx=20, pady=SPACING['minor'], sticky="ew")
+        ).grid(row=9, column=0, padx=20, pady=SPACING['minor'], sticky="ew")
         
         ctk.CTkButton(
             self.frame,
@@ -157,16 +190,16 @@ class Sidebar:
             fg_color="transparent",
             border_width=2,
             corner_radius=8
-        ).grid(row=7, column=0, padx=20, pady=(SPACING['minor'], SPACING['major']), sticky="ew")
+        ).grid(row=10, column=0, padx=20, pady=(SPACING['minor'], SPACING['major']), sticky="ew")
     
     def _create_footer(self):
         """Create version info"""
         ctk.CTkLabel(
             self.frame,
-            text="v1.2.0 | Multi-Model AI",
+            text="v1.3.0 | Semantic Cache",
             font=ctk.CTkFont(size=FONT_SIZES['mini']),
             text_color="gray"
-        ).grid(row=10, column=0, padx=20, pady=(int(10 / PHI), int(20 * PHI)), sticky="s")
+        ).grid(row=11, column=0, padx=20, pady=(int(10 / PHI), int(20 * PHI)), sticky="s")
     
     def update_status(self, embedding_status=True, llm_status=True):
         """Update API status indicators"""

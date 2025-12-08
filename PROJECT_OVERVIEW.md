@@ -11,26 +11,41 @@ All files have been rewritten in **100% English** - code, comments, documentatio
 ```
 PyRAG/
 ├── src/
-│   ├── __init__.py          ✅ Package init
-│   ├── utils.py             ✅ Configuration & utilities
-│   ├── ingestion.py         ✅ ETL pipeline (PDF → DB)
-│   ├── query_engine.py      ✅ RAG query engine
-│   └── api.py               ✅ FastAPI REST server
+│   ├── __init__.py              ✅ Package init
+│   ├── utils.py                 ✅ Configuration & utilities
+│   ├── ingestion.py             ✅ ETL pipeline (PDF → DB)
+│   ├── query_engine.py          ✅ RAG query engine
+│   ├── api.py                   ✅ FastAPI REST server
+│   ├── auto_summary.py          ✅ Auto-Summary engine
+│   ├── cross_reference.py       ✅ Cross-Reference search engine
+│   └── gui/                     ✅ Modular GUI components
+│       ├── main_window.py       ✅ Main application window
+│       ├── sidebar.py           ✅ Sidebar with action buttons
+│       ├── chat.py              ✅ Chat interface
+│       ├── constants.py         ✅ UI constants and colors
+│       ├── dialogs.py           ✅ Dialog imports hub
+│       ├── new_document_dialog.py     ✅ Document creation
+│       ├── settings_dialog.py         ✅ Settings management
+│       ├── database_manager_dialog.py ✅ ChromaDB management
+│       ├── cross_reference_dialog.py  ✅ Cross-reference UI
+│       └── auto_summary_dialog.py     ✅ Auto-summary UI (full-screen)
 │
-├── data/                    📂 PDF files location
-├── chroma_db/              📂 Vector database (auto-created)
-├── logs/                   📂 Log files (auto-created)
+├── data/                        📂 PDF files location
+├── chroma_db/                  📂 Vector database (auto-created)
+├── logs/                       📂 Log files (auto-created)
 │
-├── main.py                 ✅ CLI entry point
-├── app_gui.py              ✅ Windows GUI application
-├── start_gui.bat           🚀 GUI launcher (double-click)
-├── requirements.txt        ✅ Python dependencies
-├── .env.example           ✅ Configuration template
-├── .env                   🔒 Your API keys (secret)
-├── .gitignore             ✅ Git exclusions
-├── README.md              ✅ Full documentation
-├── QUICKSTART.md          ✅ Quick start guide
-└── GUI_GUIDE.md           ✅ GUI documentation
+├── main.py                     ✅ CLI entry point
+├── app_gui.py                  ✅ Windows GUI application
+├── start_gui.bat               🚀 GUI launcher (double-click)
+├── requirements.txt            ✅ Python dependencies
+├── .env.example               ✅ Configuration template
+├── .env                       🔒 Your API keys (secret)
+├── .gitignore                 ✅ Git exclusions
+├── README.md                  ✅ Full documentation
+├── QUICKSTART.md              ✅ Quick start guide
+├── GUI_GUIDE.md               ✅ GUI documentation
+├── AUTO_SUMMARY_FEATURE.md    ✅ Auto-Summary documentation
+└── DEEPSEEK_SETUP.md          ✅ DeepSeek integration guide
 ```
 
 ---
@@ -54,9 +69,19 @@ PyRAG/
 
 ### 4. **Multiple Interfaces**
 - GUI: Modern Windows desktop application (recommended)
+  - Chat interface for Q&A
+  - **Auto-Summary**: Extract focused information from large specs
+  - **Cross-Reference**: Search across multiple documents
+  - **Database Manager**: Visual ChromaDB management
 - CLI: Single query or interactive mode
 - API: FastAPI REST endpoints
 - Programmatic: Import as Python module
+
+### 5. **Advanced Features**
+- **Auto-Summary Engine**: Three modes (Topic Extraction, Requirements List, Cross-Trade Comparison)
+- **Cross-Reference Search**: Simultaneous multi-document querying
+- **Database Manager**: Visual metadata management and document export
+- **DeepSeek Integration**: 90% cost reduction vs GPT-4o
 
 ---
 
@@ -128,6 +153,7 @@ PDF Files → PyMuPDF4LLM (table extraction)
          → Semantic Chunking
          → OpenAI Embeddings
          → ChromaDB Storage
+         → Metadata (project, category, tags)
 ```
 
 ### Query Pipeline (query_engine.py)
@@ -135,8 +161,34 @@ PDF Files → PyMuPDF4LLM (table extraction)
 User Question → Vector Search (top 10)
              → Similarity Filter (>0.7)
              → Top 3 contexts
-             → GPT-4o (with system prompt)
+             → GPT-4o/DeepSeek (with system prompt)
              → Structured Answer
+```
+
+### Auto-Summary Engine (auto_summary.py)
+```
+User Topic → Keyword Expansion
+          → Filter Chunks by Keywords
+          → Extract Relevant Sections
+          → LLM Summary Generation
+          → Formatted Output
+```
+
+### Cross-Reference Engine (cross_reference.py)
+```
+User Query + Multiple Docs → Vector Search per Document
+                           → Aggregate Results
+                           → Similarity Reranking
+                           → Combined Answer with Sources
+```
+
+### Database Manager
+```
+ChromaDB Interface → List Collections
+                  → Browse Documents/Chunks
+                  → Edit Metadata (project/category/tags)
+                  → Export Documents
+                  → Delete Operations
 ```
 
 ### API Layer (api.py)
@@ -158,10 +210,12 @@ FastAPI Server
 | Framework | LlamaIndex | RAG orchestration |
 | Vector DB | ChromaDB | Local storage |
 | PDF Parser | PyMuPDF4LLM | Table extraction |
-| LLM | GPT-4o | Answer generation |
+| LLM | GPT-4o / DeepSeek | Answer generation (DeepSeek 90% cheaper) |
 | Embeddings | text-embedding-3-small | Fast & cheap |
 | API | FastAPI | REST endpoints |
+| GUI | CustomTkinter | Modern Windows UI |
 | Logging | Loguru | Structured logs |
+| Export | reportlab | PDF export (planned) |
 
 ---
 
@@ -248,7 +302,16 @@ python main.py stats
 
 ## 🚧 Future Enhancements
 
+### ✅ Recently Completed
+- [x] **Auto-Summary Engine** - Extract focused info from large specs
+- [x] **Cross-Reference Search** - Multi-document querying
+- [x] **Database Manager** - Visual ChromaDB management
+- [x] **DeepSeek Integration** - 90% cost reduction
+- [x] **Modular GUI** - Separated into components
+- [x] **Metadata System** - Project/category tagging
+
 ### Short-term
+- [ ] PDF export for Auto-Summary (reportlab)
 - [ ] Add retry logic for API failures
 - [ ] Cache frequent queries
 - [ ] Progress bars for indexing
@@ -259,12 +322,14 @@ python main.py stats
 - [ ] Multi-language support
 - [ ] Batch document processing
 - [ ] Custom system prompts
+- [ ] Dark/Light theme toggle
 
 ### Long-term
 - [ ] Multi-modal (images/diagrams)
 - [ ] Fine-tuned embedding model
 - [ ] Chat memory/history
 - [ ] Web UI (Streamlit/React)
+- [ ] Quantity Takeoff (technical drawing analysis with Computer Vision)
 
 ---
 

@@ -25,13 +25,13 @@ class DatabaseManagerDialog(ctk.CTkToplevel):
         
         # Window size
         width = 900
-        height = 600
+        height = 750
         screen_w = self.winfo_screenwidth()
         screen_h = self.winfo_screenheight()
         pos_x = (screen_w - width) // 2
         pos_y = (screen_h - height) // 2
         self.geometry(f"{width}x{height}+{pos_x}+{pos_y}")
-        self.resizable(False, False)
+        self.resizable(True, True)
         
         self.transient(parent)
         self.grab_set()
@@ -124,7 +124,7 @@ class DatabaseManagerDialog(ctk.CTkToplevel):
     
     def _create_edit_panel(self, parent):
         """Create edit panel"""
-        edit_frame = ctk.CTkFrame(parent)
+        edit_frame = ctk.CTkScrollableFrame(parent)
         edit_frame.grid(row=0, column=1, padx=(5, 10), pady=10, sticky="nsew")
         edit_frame.grid_columnconfigure(0, weight=1)
         
@@ -179,7 +179,49 @@ class DatabaseManagerDialog(ctk.CTkToplevel):
             values=project_list,
             height=36
         )
-        self.project_menu.grid(row=6, column=0, padx=15, pady=(0, 25), sticky="ew")
+        self.project_menu.grid(row=6, column=0, padx=15, pady=(0, 15), sticky="ew")
+        
+        # Standard No
+        ctk.CTkLabel(
+            edit_frame,
+            text="Standard No:",
+            font=ctk.CTkFont(size=FONT_SIZES['small'], weight="bold")
+        ).grid(row=7, column=0, padx=15, pady=(0, 5), sticky="w")
+        
+        self.standard_no_entry = ctk.CTkEntry(
+            edit_frame,
+            placeholder_text="e.g., IEC 60364-5-52",
+            height=36
+        )
+        self.standard_no_entry.grid(row=8, column=0, padx=15, pady=(0, 15), sticky="ew")
+        
+        # Date
+        ctk.CTkLabel(
+            edit_frame,
+            text="Date:",
+            font=ctk.CTkFont(size=FONT_SIZES['small'], weight="bold")
+        ).grid(row=9, column=0, padx=15, pady=(0, 5), sticky="w")
+        
+        self.date_entry = ctk.CTkEntry(
+            edit_frame,
+            placeholder_text="e.g., 2024-03",
+            height=36
+        )
+        self.date_entry.grid(row=10, column=0, padx=15, pady=(0, 15), sticky="ew")
+        
+        # Description
+        ctk.CTkLabel(
+            edit_frame,
+            text="Description:",
+            font=ctk.CTkFont(size=FONT_SIZES['small'], weight="bold")
+        ).grid(row=11, column=0, padx=15, pady=(0, 5), sticky="w")
+        
+        self.description_entry = ctk.CTkEntry(
+            edit_frame,
+            placeholder_text="Brief description",
+            height=36
+        )
+        self.description_entry.grid(row=12, column=0, padx=15, pady=(0, 25), sticky="ew")
         
         # Action buttons
         self.update_btn = ctk.CTkButton(
@@ -192,7 +234,7 @@ class DatabaseManagerDialog(ctk.CTkToplevel):
             hover_color=COLORS['primary_hover'],
             font=ctk.CTkFont(size=FONT_SIZES['normal'], weight="bold")
         )
-        self.update_btn.grid(row=7, column=0, padx=15, pady=(0, 10), sticky="ew")
+        self.update_btn.grid(row=13, column=0, padx=15, pady=(0, 10), sticky="ew")
         
         self.delete_btn = ctk.CTkButton(
             edit_frame,
@@ -204,7 +246,7 @@ class DatabaseManagerDialog(ctk.CTkToplevel):
             hover_color=COLORS['danger_hover'],
             font=ctk.CTkFont(size=FONT_SIZES['normal'])
         )
-        self.delete_btn.grid(row=8, column=0, padx=15, pady=(0, 15), sticky="ew")
+        self.delete_btn.grid(row=14, column=0, padx=15, pady=(0, 15), sticky="ew")
         
         # Info label
         self.info_label = ctk.CTkLabel(
@@ -213,7 +255,7 @@ class DatabaseManagerDialog(ctk.CTkToplevel):
             font=ctk.CTkFont(size=FONT_SIZES['tiny']),
             text_color="gray"
         )
-        self.info_label.grid(row=9, column=0, padx=15, pady=(10, 0), sticky="w")
+        self.info_label.grid(row=15, column=0, padx=15, pady=(10, 0), sticky="w")
     
     def load_documents(self):
         """Load documents from database"""
@@ -242,6 +284,9 @@ class DatabaseManagerDialog(ctk.CTkToplevel):
                             'name': doc_name,
                             'category': metadata.get('categories', ''),
                             'project': metadata.get('project_name', 'N/A'),
+                            'standard_no': metadata.get('standard_no', ''),
+                            'date': metadata.get('date', ''),
+                            'description': metadata.get('description', ''),
                             'count': 0
                         }
                     doc_map[doc_name]['count'] += 1
@@ -253,7 +298,7 @@ class DatabaseManagerDialog(ctk.CTkToplevel):
             for idx, doc in enumerate(sorted(self.documents, key=lambda x: x['name'])):
                 btn = ctk.CTkButton(
                     self.doc_scroll,
-                    text=f"📄 {doc['name']} ({doc['count']} chunks)",
+                    text=f"📄 {doc['name']} ({doc['count']} nodes)",
                     command=lambda d=doc: self.select_document(d),
                     height=36,
                     anchor="w",
@@ -280,12 +325,21 @@ class DatabaseManagerDialog(ctk.CTkToplevel):
         self.category_var.set(doc['category'])
         self.project_var.set(doc['project'])
         
+        self.standard_no_entry.delete(0, "end")
+        self.standard_no_entry.insert(0, doc.get('standard_no', ''))
+        
+        self.date_entry.delete(0, "end")
+        self.date_entry.insert(0, doc.get('date', ''))
+        
+        self.description_entry.delete(0, "end")
+        self.description_entry.insert(0, doc.get('description', ''))
+        
         # Enable buttons
         self.update_btn.configure(state="normal")
         self.delete_btn.configure(state="normal")
         
         self.info_label.configure(
-            text=f"✏️ Editing: {doc['name']} | {doc['count']} chunks",
+            text=f"✏️ Editing: {doc['name']} | {doc['count']} nodes",
             text_color=COLORS['primary']
         )
     
@@ -297,6 +351,9 @@ class DatabaseManagerDialog(ctk.CTkToplevel):
         new_name = self.name_entry.get().strip()
         new_category = self.category_var.get()
         new_project = self.project_var.get()
+        new_standard_no = self.standard_no_entry.get().strip()
+        new_date = self.date_entry.get().strip()
+        new_description = self.description_entry.get().strip()
         
         if not new_name:
             messagebox.showwarning("Invalid Name", "Document name cannot be empty.")
@@ -308,8 +365,11 @@ class DatabaseManagerDialog(ctk.CTkToplevel):
             f"Update all chunks of '{self.selected_doc['name']}'?\n\n"
             f"New name: {new_name}\n"
             f"New category: {new_category}\n"
-            f"New project: {new_project}\n\n"
-            f"Total chunks to update: {self.selected_doc['count']}",
+            f"New project: {new_project}\n"
+            f"Standard No: {new_standard_no}\n"
+            f"Date: {new_date}\n"
+            f"Description: {new_description}\n\n"
+            f"Total nodes to update: {self.selected_doc['count']}",
             icon='question'
         )
         
@@ -319,7 +379,7 @@ class DatabaseManagerDialog(ctk.CTkToplevel):
         # Second confirmation
         confirm = messagebox.askyesno(
             "⚠️ Final Confirmation",
-            f"This will update {self.selected_doc['count']} database entries.\n\n"
+            f"This will update {self.selected_doc['count']} database nodes.\n\n"
             f"Are you absolutely sure you want to proceed?",
             icon='warning'
         )
@@ -344,6 +404,18 @@ class DatabaseManagerDialog(ctk.CTkToplevel):
                     new_meta['document_name'] = new_name
                     new_meta['categories'] = new_category
                     new_meta['project_name'] = new_project
+                    if new_standard_no:
+                        new_meta['standard_no'] = new_standard_no
+                    elif 'standard_no' in new_meta:
+                        del new_meta['standard_no']
+                    if new_date:
+                        new_meta['date'] = new_date
+                    elif 'date' in new_meta:
+                        del new_meta['date']
+                    if new_description:
+                        new_meta['description'] = new_description
+                    elif 'description' in new_meta:
+                        del new_meta['description']
                     updated_metadatas.append(new_meta)
                 
                 # Batch update
@@ -354,7 +426,7 @@ class DatabaseManagerDialog(ctk.CTkToplevel):
                 
                 messagebox.showinfo(
                     "Success",
-                    f"Updated {len(results['ids'])} chunks successfully!"
+                    f"Updated {len(results['ids'])} nodes successfully!"
                 )
                 
                 # Refresh
@@ -377,7 +449,7 @@ class DatabaseManagerDialog(ctk.CTkToplevel):
         result = messagebox.askyesno(
             "⚠️ Delete Document",
             f"Are you sure you want to delete '{self.selected_doc['name']}'?\n\n"
-            f"This will remove all {self.selected_doc['count']} chunks from the database.\n"
+            f"This will remove all {self.selected_doc['count']} nodes from the database.\n"
             f"This action cannot be undone!",
             icon='warning'
         )
@@ -390,7 +462,7 @@ class DatabaseManagerDialog(ctk.CTkToplevel):
             "⛔ FINAL CONFIRMATION",
             f"Last chance to cancel!\n\n"
             f"Document: {self.selected_doc['name']}\n"
-            f"Chunks to delete: {self.selected_doc['count']}\n\n"
+            f"Nodes to delete: {self.selected_doc['count']}\n\n"
             f"Are you absolutely certain you want to proceed?",
             icon='warning'
         )
@@ -413,7 +485,7 @@ class DatabaseManagerDialog(ctk.CTkToplevel):
                 
                 messagebox.showinfo(
                     "Success",
-                    f"Deleted {len(results['ids'])} chunks of '{self.selected_doc['name']}'!"
+                    f"Deleted {len(results['ids'])} nodes of '{self.selected_doc['name']}'!"
                 )
                 
                 # Refresh

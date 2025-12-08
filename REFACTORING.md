@@ -10,13 +10,15 @@ Eski `app_gui.py` (2165 satır) şu modüllere ayrıldı:
 src/gui/
 ├── __init__.py                    # Module exports  
 ├── constants.py                   # Constants, colors, config (119 lines)
-├── main_window.py                 # Main application window (335 lines)
-├── sidebar.py                     # Sidebar component (174 lines)
+├── main_window.py                 # Main application window (400+ lines)
+├── sidebar.py                     # Sidebar component (180+ lines)
 ├── chat.py                        # Chat area component (381 lines)
 ├── dialogs.py                     # Dialog import hub (14 lines)
 ├── new_document_dialog.py         # New document dialog (~530 lines)
 ├── settings_dialog.py             # Settings dialog (~340 lines)
-└── database_manager_dialog.py    # Database manager (~410 lines)
+├── database_manager_dialog.py    # Database manager (~410 lines)
+├── cross_reference_dialog.py     # Cross-reference search (~420 lines)
+└── auto_summary_dialog.py        # Auto-summary engine (~530 lines, full-screen)
 ```
 
 ### 🔧 Her Modülün Sorumluluğu
@@ -79,6 +81,21 @@ src/gui/
 - CRUD operations on ChromaDB
 - Double confirmation for critical operations
 
+#### `cross_reference_dialog.py`
+- CrossReferenceDialog sınıfı
+- Multi-document selection with checkboxes
+- Simultaneous search across documents
+- Aggregated results with source tracking
+- Similarity scoring and filtering
+
+#### `auto_summary_dialog.py`
+- AutoSummaryDialog sınıfı
+- **Full-screen interface** with left/right panels
+- Quick Topic buttons (8 MEP systems)
+- Rich text formatting for summaries
+- Tabbed results view (Summary + Sections)
+- Export to text (PDF coming soon)
+
 ### 🚀 Kullanım
 
 #### Yeni Modüler Yapı İle:
@@ -122,15 +139,28 @@ python app_gui.py
 - Dialog'lar parent'a message göndermek için parent.chat.append_message() kullanıyor
 - Status indicator'lar STATUS_ICONS ve STATUS_COLORS dict'lerinden
 
+### ✅ Completed Features
+
+- [x] Modular GUI structure with separate components
+- [x] Auto-Summary engine with full-screen interface
+- [x] Cross-Reference search dialog
+- [x] Database Manager with metadata editing
+- [x] Settings dialog with API configuration
+- [x] New Document dialog with background indexing
+- [x] Rich text formatting in Auto-Summary
+
 ### 🐛 Bilinen Sorunlar
 
-- SettingsDialog henüz tam implementasyona sahip değil (basitleştirilmiş versiyon)
-- Bazı eski app_gui.py fonksiyonları henüz taşınmadı (nadiren kullanılanlar)
+- PDF export for Auto-Summary pending (reportlab integration ready)
+- Some legacy app_gui.py features may need migration (rarely used)
 
 ### 📚 Gelecek İyileştirmeler
 
-1. SettingsDialog'u tam olarak implemente et
-2. Unit testler ekle
-3. Type hints ekle
-4. Docstring'leri iyileştir
-5. Async/await için refactor (threading yerine)
+1. ✅ Auto-Summary full implementation - **COMPLETED**
+2. ✅ Cross-Reference engine - **COMPLETED**
+3. ✅ Database Manager - **COMPLETED**
+4. [ ] Unit testler ekle
+5. [ ] Type hints ekle
+6. [ ] Docstring'leri iyileştir
+7. [ ] Async/await için refactor (threading yerine)
+8. [ ] PDF export for Auto-Summary (reportlab ready)

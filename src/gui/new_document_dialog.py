@@ -152,6 +152,9 @@ class NewDocumentDialog(ctk.CTkToplevel):
                         "path": f,
                         "category": "Uncategorized",
                         "project": "N/A",
+                        "standard_no": "",
+                        "date": "",
+                        "description": "",
                     })
             self.refresh_file_list()
     
@@ -310,6 +313,79 @@ class NewDocumentDialog(ctk.CTkToplevel):
                 remove_btn.pack(side="right", padx=5)
                 item["remove_btn_widget"] = remove_btn
                 
+                # === ROW 1.5: Metadata fields (Standard No, Date, Description) ===
+                metadata_row = ctk.CTkFrame(container, fg_color="transparent")
+                metadata_row.pack(fill="x", padx=5, pady=(5, 2))
+                
+                # Standard No
+                ctk.CTkLabel(metadata_row, text="Standard No:", 
+                           font=ctk.CTkFont(size=FONT_SIZES['tiny']),
+                           text_color="gray", width=80, anchor="e").pack(side="left", padx=(10, 5))
+                
+                standard_no_var = ctk.StringVar(value=item.get("standard_no", ""))
+                
+                def make_standard_cb(idx, var):
+                    def _update(*_):
+                        self.selected_items[idx]["standard_no"] = var.get()
+                    return _update
+                
+                standard_entry = ctk.CTkEntry(
+                    metadata_row,
+                    textvariable=standard_no_var,
+                    width=150,
+                    height=28,
+                    font=ctk.CTkFont(size=FONT_SIZES['tiny']),
+                    placeholder_text="e.g., IEC 60364-5-52"
+                )
+                standard_entry.pack(side="left", padx=5)
+                standard_no_var.trace_add("write", make_standard_cb(i, standard_no_var))
+                
+                # Date
+                ctk.CTkLabel(metadata_row, text="Date:", 
+                           font=ctk.CTkFont(size=FONT_SIZES['tiny']),
+                           text_color="gray", width=40, anchor="e").pack(side="left", padx=(10, 5))
+                
+                date_var = ctk.StringVar(value=item.get("date", ""))
+                
+                def make_date_cb(idx, var):
+                    def _update(*_):
+                        self.selected_items[idx]["date"] = var.get()
+                    return _update
+                
+                date_entry = ctk.CTkEntry(
+                    metadata_row,
+                    textvariable=date_var,
+                    width=120,
+                    height=28,
+                    font=ctk.CTkFont(size=FONT_SIZES['tiny']),
+                    placeholder_text="e.g., 2024-03"
+                )
+                date_entry.pack(side="left", padx=5)
+                date_var.trace_add("write", make_date_cb(i, date_var))
+                
+                # Description
+                ctk.CTkLabel(metadata_row, text="Description:", 
+                           font=ctk.CTkFont(size=FONT_SIZES['tiny']),
+                           text_color="gray", width=80, anchor="e").pack(side="left", padx=(10, 5))
+                
+                desc_var = ctk.StringVar(value=item.get("description", ""))
+                
+                def make_desc_cb(idx, var):
+                    def _update(*_):
+                        self.selected_items[idx]["description"] = var.get()
+                    return _update
+                
+                desc_entry = ctk.CTkEntry(
+                    metadata_row,
+                    textvariable=desc_var,
+                    width=250,
+                    height=28,
+                    font=ctk.CTkFont(size=FONT_SIZES['tiny']),
+                    placeholder_text="Brief description of the document"
+                )
+                desc_entry.pack(side="left", padx=5, fill="x", expand=True)
+                desc_var.trace_add("write", make_desc_cb(i, desc_var))
+                
                 # === ROW 2: Info, status, progress ===
                 row2 = ctk.CTkFrame(container, fg_color="transparent")
                 row2.pack(fill="x", padx=5, pady=(0, 5))
@@ -430,7 +506,10 @@ class NewDocumentDialog(ctk.CTkToplevel):
                 
                 mapping[file_name] = {
                     "category": item.get("category", "Uncategorized"),
-                    "project": item.get("project", "N/A")
+                    "project": item.get("project", "N/A"),
+                    "standard_no": item.get("standard_no", ""),
+                    "date": item.get("date", ""),
+                    "description": item.get("description", "")
                 }
                 item["copied_path"] = str(dest)
                 item["file_name"] = file_name
@@ -466,11 +545,16 @@ class NewDocumentDialog(ctk.CTkToplevel):
                     result = ingestion.ingest_single_file(
                         file_path=item["copied_path"],
                         category=item.get("category", "Uncategorized"),
-                        project=item.get("project", "N/A")
+                        project=item.get("project", "N/A"),
+                        standard_no=item.get("standard_no", ""),
+                        date=item.get("date", ""),
+                        description=item.get("description", "")
                     )
                     
                     if result["success"]:
-                        chunk_info = f"{result['chunks']} chunks"
+                        # Show leaf chunks (actual indexed count)
+                        leaf_count = result.get('leaf_chunks', result['chunks'])
+                        chunk_info = f"{leaf_count} chunks"
                         self.after(0, self.update_status, file_path, "success", chunk_info)
                         success_count += 1
                     else:
