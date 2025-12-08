@@ -38,14 +38,16 @@ Pre-configured buttons for common MEP systems:
 
 ### From GUI
 1. Click **"📄 Auto-Summary"** button in the sidebar
-2. Select summary type (Topic/Requirements/Comparison)
-3. Choose document(s)
-4. Enter topic or click a Quick Topic button
-5. Click **Generate**
+2. **Full-screen interface** opens with modern layout:
+   - **Left Panel (300px)**: Document selection + Quick Topic buttons
+   - **Right Panel**: Topic input, Generate/Export buttons, Results tabs
+3. Select document(s) using radio buttons (left panel)
+4. Enter topic manually OR click a Quick Topic button
+5. Click **Generate** button
 6. View results in two tabs:
-   - **Summary**: LLM-generated structured summary
-   - **Extracted Sections**: All found sections with page numbers
-7. Export to text file if needed
+   - **Summary**: LLM-generated structured summary with rich text formatting
+   - **Sections**: All found sections with page numbers
+7. Click **Export** to save as text file (PDF export coming soon)
 
 ### Example Workflows
 
@@ -143,14 +145,58 @@ EXTRACTED SECTIONS (25 sections found)
 - DeepSeek LLM for summary generation
 - CustomTkinter for GUI
 
+## UI Design
+
+### Full-Screen Layout
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│  Auto-Summary - PyRAG Engineering Assistant                │
+├───────────────┬─────────────────────────────────────────────┤
+│  LEFT PANEL   │  RIGHT PANEL                                │
+│  (300px)      │  (expandable)                              │
+│               │                                             │
+│  📄 Documents │  Enter Topic: [________________]           │
+│  ○ LDA.pdf    │                                             │
+│  ○ IS3218.pdf │  [Generate] [Export]                       │
+│  ○ NSAI.pdf   │                                             │
+│               │  ┌───────────────────────────────────────┐ │
+│  Quick Topics │  │ Summary  │ Sections  │                │ │
+│  ⚡ Electrical │  ├───────────────────────────────────────┤ │
+│  🔋 UPS        │  │                                        │ │
+│  ⚙️ Generator  │  │  [Results display here with rich      │ │
+│  💡 Lighting   │  │   text formatting]                    │ │
+│  🔥 Fire Alarm │  │                                        │ │
+│  🧯 Firestop   │  │                                        │ │
+│  🔌 Cable      │  │                                        │ │
+│  🧪 Testing    │  │                                        │ │
+│               │  └───────────────────────────────────────┘ │
+└───────────────┴─────────────────────────────────────────────┘
+```
+
+### Rich Text Formatting
+
+Summary results include:
+- **Headings** (## bold text)
+- **Bold text** (\*\*text\*\*)
+- **Bullet points** (•)
+- **Code blocks** (monospace font)
+- Proper spacing and indentation
+
 ## Future Enhancements
 
-Potential improvements:
-- Custom keyword expansion by user
-- Save/load favorite topics
-- Summary templates (e.g., "Compliance Checklist")
-- Multi-language support
-- PDF export with formatting
-- Comparison matrix view for cross-trade analysis
-- Topic clustering (group similar sections automatically)
+### ✅ Recently Completed
+- [x] Full-screen interface with left/right panels
+- [x] Rich text formatting for summaries
+- [x] 8 Quick Topic buttons with keyword expansion
+- [x] Tabbed results view (Summary + Sections)
+
+### 🚧 Coming Soon
+- [ ] PDF export with formatting (reportlab integration in progress)
+- [ ] Custom keyword expansion by user
+- [ ] Save/load favorite topics
+- [ ] Summary templates (e.g., "Compliance Checklist")
+- [ ] Multi-language support
+- [ ] Comparison matrix view for cross-trade analysis
+- [ ] Topic clustering (group similar sections automatically)
 - Diff view for comparing specific requirements

@@ -17,6 +17,7 @@ from llama_index.core import (
 from llama_index.core.retrievers import VectorIndexRetriever
 from llama_index.core.query_engine import RetrieverQueryEngine
 from llama_index.core.postprocessor import SimilarityPostprocessor
+from llama_index.core.indices.postprocessor import MetadataReplacementPostProcessor
 from llama_index.embeddings.openai import OpenAIEmbedding
 from llama_index.llms.openai import OpenAI
 from llama_index.llms.deepseek import DeepSeek
@@ -24,6 +25,12 @@ from llama_index.vector_stores.chroma import ChromaVectorStore
 
 from loguru import logger
 from src.utils import get_settings, setup_logger, create_system_prompt
+from src.semantic_cache import get_cache
+from src.query_expansion import get_expander
+from src.feedback_manager import get_feedback_manager
+from src.feedback_postprocessor import get_feedback_postprocessor
+from src.query_analyzer import get_query_analyzer
+from src.bm25_searcher import get_bm25_searcher
 
 
 class QueryEngine:
@@ -31,10 +38,18 @@ class QueryEngine:
     Processes user queries and generates answers
     """
     
-    def __init__(self):
+    def __init__(self, use_cache: bool = True, use_expansion: bool = True):
         self.settings = get_settings()
+        self.use_cache = use_cache
+        self.use_expansion = use_expansion
+        self.cache = get_cache() if use_cache else None
+        self.expander = get_expander() if use_expansion else None
+        self.feedback_manager = get_feedback_manager()
+        self.query_analyzer = get_query_analyzer()
+        self.bm25_searcher = get_bm25_searcher()
         self._setup_llama_index()
         self._load_index()
+        self._index_bm25()  # Index documents for keyword search
         self._setup_query_engine()
     
     def _setup_llama_index(self):
@@ -110,9 +125,39 @@ class QueryEngine:
             logger.warning("💡 Run ingestion first: python main.py ingest")
             raise
     
+    def _index_bm25(self):
+        """Index all documents for BM25 keyword search"""
+        logger.info("🔑 Indexing documents for BM25 keyword search...")
+        
+        try:
+            # Get all documents from ChromaDB
+            all_docs = self.chroma_collection.get()
+            
+            if not all_docs or not all_docs.get('documents'):
+                logger.warning("⚠️ No documents found for BM25 indexing")
+                return
+            
+            # Prepare documents for BM25
+            bm25_docs = []
+            for i, doc_text in enumerate(all_docs['documents']):
+                metadata = all_docs['metadatas'][i] if all_docs.get('metadatas') else {}
+                bm25_docs.append({
+                    'text': doc_text,
+                    'metadata': metadata,
+                    'id': all_docs['ids'][i] if all_docs.get('ids') else str(i)
+                })
+            
+            # Index documents
+            self.bm25_searcher.index_documents(bm25_docs)
+            logger.success(f"✅ BM25 index ready with {len(bm25_docs)} documents")
+            
+        except Exception as e:
+            logger.error(f"❌ Failed to index BM25: {e}")
+            logger.warning("⚠️ BM25 search will not be available")
+    
     def _setup_query_engine(self):
-        """Configure query engine (Retriever + Synthesizer)"""
-        logger.info("🔧 Setting up query engine...")
+        """Configure query engine (Retriever + Synthesizer) with hierarchical context"""
+        logger.info("🔧 Setting up query engine with hierarchical retrieval...")
         
         # Retriever: Fetches relevant nodes from database
         retriever = VectorIndexRetriever(
@@ -120,19 +165,33 @@ class QueryEngine:
             similarity_top_k=15,  # Fetch more candidates for reranking
         )
         
+        # Postprocessors:
+        # 1. Feedback-based re-ranking (active learning)
+        # 2. Replace child nodes with parent context (hierarchical chunking)
+        node_postprocessors = [
+            get_feedback_postprocessor(
+                boost_factor=0.15,  # 15% boost for positive feedback
+                penalty_factor=0.10  # 10% penalty for negative feedback
+            ),
+            MetadataReplacementPostProcessor(
+                target_metadata_key="window"  # Replace with parent context
+            )
+        ]
+        
         # Response Synthesizer: Combines nodes and sends to LLM
         response_synthesizer = get_response_synthesizer(
             response_mode="compact",
             structured_answer_filtering=False  # Don't filter, just answer
         )
         
-        # Query Engine: Simple and reliable - NO postprocessors
+        # Query Engine: With hierarchical context
         self.query_engine = RetrieverQueryEngine(
             retriever=retriever,
-            response_synthesizer=response_synthesizer
+            response_synthesizer=response_synthesizer,
+            node_postprocessors=node_postprocessors
         )
         
-        logger.success("✅ Query engine ready")
+        logger.success("✅ Query engine ready with hierarchical context retrieval")
     
     def _expand_query(self, query: str) -> str:
         """
@@ -198,6 +257,12 @@ class QueryEngine:
             project_filter = None
         
         logger.info(f"🔍 Query: '{question}'")
+        
+        # Analyze query to determine optimal retrieval strategy
+        query_analysis = self.query_analyzer.analyze(question)
+        logger.info(f"   🧠 Intent: {query_analysis['intent'].value}")
+        logger.info(f"   ⚖️ Weights: {query_analysis['weights']}")
+        
         if document_filter:
             logger.info(f"   📄 Document filter: {document_filter}")
         if category_filter:
@@ -205,10 +270,31 @@ class QueryEngine:
         if project_filter:
             logger.info(f"   📁 Project filter: {project_filter}")
         
-        # Query expansion: Add engineering synonyms for better recall
-        expanded_query = self._expand_query(question)
+        # Check cache first (only if no filters applied)
+        if self.use_cache and self.cache and not any([document_filter, category_filter, project_filter]):
+            cached_result = self.cache.get(question)
+            if cached_result:
+                logger.success(f"⚡ CACHE HIT! Returning cached answer (similarity: {cached_result['similarity']:.3f})")
+                return {
+                    "response": cached_result["answer"],
+                    "sources": cached_result.get("sources", []),
+                    "metadata": {
+                        "question": question,
+                        "model": self.settings.llm_model,
+                        "from_cache": True,
+                        "cache_similarity": cached_result["similarity"],
+                        "original_query": cached_result["query"]
+                    }
+                }
+        
+        # Query expansion: Add MEP-specific synonyms for better recall
+        if self.use_expansion and self.expander:
+            expanded_query = self.expander.expand(question)
+        else:
+            expanded_query = self._expand_query(question)  # Legacy expansion
+        
         if expanded_query != question:
-            logger.debug(f"   ✨ Expanded query: '{expanded_query}'")
+            logger.info(f"   ✨ Expanded: '{question}' → '{expanded_query}'")
         
         try:
             # Build metadata filters if provided
@@ -216,9 +302,11 @@ class QueryEngine:
             
             metadata_filter_list = []
             if document_filter:
-                # Use 'file_name' - this is the actual field that exists in all nodes
-                # Expected format: "LDA.pdf", "NSAI - National Rules for Electrical Installations (Edition 5.0).pdf"
-                metadata_filter_list.append(MetadataFilter(key="file_name", value=document_filter, operator=FilterOperator.EQ))
+                # Use file_name with exact match (EQ operator)
+                # document_filter should be the exact file_name value
+                metadata_filter_list.append(
+                    MetadataFilter(key="file_name", value=document_filter, operator=FilterOperator.EQ)
+                )
             
             if category_filter:
                 # Category filter - use EQ for exact match
@@ -227,33 +315,53 @@ class QueryEngine:
             if project_filter:
                 metadata_filter_list.append(MetadataFilter(key="project_name", value=project_filter, operator=FilterOperator.EQ))
             
-            # Create custom retriever with filters if needed
-            # Use expanded query directly (system prompt handled by LLM settings)
+            # Hybrid Search: Combine semantic + keyword results
             query_to_use = expanded_query
             
+            # Step 1: Get semantic search results
             if metadata_filter_list:
                 metadata_filters = MetadataFilters(filters=metadata_filter_list)
-                retriever = VectorIndexRetriever(
+                semantic_retriever = VectorIndexRetriever(
                     index=self.index,
                     similarity_top_k=15,  # More candidates
                     filters=metadata_filters
                 )
-                
-                # Create temporary query engine with filtered retriever
-                response_synthesizer = get_response_synthesizer(
-                    response_mode="compact",
-                    structured_answer_filtering=False
-                )
-                
-                temp_query_engine = RetrieverQueryEngine(
-                    retriever=retriever,
-                    response_synthesizer=response_synthesizer
-                )
-                
-                response = temp_query_engine.query(query_to_use)
             else:
-                # Use default query engine
-                response = self.query_engine.query(query_to_use)
+                semantic_retriever = VectorIndexRetriever(
+                    index=self.index,
+                    similarity_top_k=15
+                )
+            
+            semantic_nodes = semantic_retriever.retrieve(query_to_use)
+            logger.info(f"   🔍 Semantic search: {len(semantic_nodes)} nodes")
+            
+            # Step 2: Get BM25 keyword results
+            bm25_results = self.bm25_searcher.search(query_to_use, top_k=15)
+            logger.info(f"   🔑 BM25 search: {len(bm25_results)} nodes")
+            
+            # Step 3: Adaptive blending based on query analysis
+            blended_nodes = self._blend_results(
+                semantic_nodes=semantic_nodes,
+                bm25_results=bm25_results,
+                weights=query_analysis['weights'],
+                query=query_to_use
+            )
+            
+            # Step 4: Create query engine with blended results
+            response_synthesizer = get_response_synthesizer(
+                response_mode="compact",
+                structured_answer_filtering=False
+            )
+            
+            # Create custom retriever from blended nodes
+            from llama_index.core.schema import QueryBundle
+            query_bundle = QueryBundle(query_str=query_to_use)
+            
+            # Get LLM response with blended context
+            response = response_synthesizer.synthesize(
+                query=query_bundle,
+                nodes=blended_nodes[:10]  # Top 10 after blending
+            )
             
             # Debug log
             logger.debug(f"Response type: {type(response)}")
@@ -289,10 +397,18 @@ class QueryEngine:
                     doc_name = metadata.get('document_name', metadata.get('file_name', 'Unknown'))
                     page_num = metadata.get('page_label', metadata.get('page', 'N/A'))
                     
+                    # Extract custom metadata
+                    standard_no = metadata.get('standard_no', '')
+                    date = metadata.get('date', '')
+                    description = metadata.get('description', '')
+                    
                     source = {
                         "rank": idx,
                         "document": doc_name,
                         "page": page_num,
+                        "standard_no": standard_no,
+                        "date": date,
+                        "description": description,
                         "text": node.text[:300] + "...",  # First 300 characters
                         "score": node.score if hasattr(node, 'score') else None,
                         "metadata": metadata
@@ -300,6 +416,14 @@ class QueryEngine:
                     result["sources"].append(source)
                 
                 logger.info(f"📚 Used {len(result['sources'])} source document(s)")
+            
+            # Cache the result (only if no filters applied)
+            if self.use_cache and self.cache and not any([document_filter, category_filter, project_filter]):
+                self.cache.set(
+                    query=question,
+                    answer=answer_text,
+                    sources=result.get("sources")
+                )
             
             logger.success("✅ Answer generated")
             return result
@@ -350,6 +474,88 @@ class QueryEngine:
         except Exception as e:
             logger.error(f"❌ Failed to switch model: {e}")
             raise
+    
+    def _blend_results(
+        self,
+        semantic_nodes: List,
+        bm25_results: List[Dict],
+        weights: Dict[str, float],
+        query: str
+    ) -> List:
+        """
+        Blend semantic and BM25 results using adaptive weights
+        
+        Args:
+            semantic_nodes: Nodes from semantic search (NodeWithScore)
+            bm25_results: Results from BM25 search
+            weights: Weight dict from query analysis
+            query: Original query
+            
+        Returns:
+            Blended and re-ranked nodes
+        """
+        from llama_index.core.schema import NodeWithScore
+        
+        # Get weights
+        semantic_weight = weights.get('semantic', 0.5)
+        keyword_weight = weights.get('keyword', 0.3)
+        
+        logger.info(f"   ⚖️ Blending: semantic={semantic_weight:.2f}, keyword={keyword_weight:.2f}")
+        
+        # Create a mapping of node_id -> combined_score
+        node_scores = {}
+        
+        # Add semantic scores (already normalized 0-1)
+        for node in semantic_nodes:
+            node_id = node.node.id_
+            node_scores[node_id] = {
+                'node': node,
+                'semantic_score': node.score,
+                'keyword_score': 0.0
+            }
+        
+        # Normalize BM25 scores to 0-1 range
+        if bm25_results:
+            max_bm25 = max(r['score'] for r in bm25_results)
+            min_bm25 = min(r['score'] for r in bm25_results)
+            bm25_range = max_bm25 - min_bm25 if max_bm25 > min_bm25 else 1.0
+            
+            for result in bm25_results:
+                doc_id = result['doc'].get('id')
+                normalized_bm25 = (result['score'] - min_bm25) / bm25_range
+                
+                if doc_id in node_scores:
+                    # Update existing node
+                    node_scores[doc_id]['keyword_score'] = normalized_bm25
+                else:
+                    # Create new node from BM25 (not in semantic results)
+                    # Skip these for now - focus on semantic results
+                    pass
+        
+        # Calculate final blended scores
+        blended_nodes = []
+        for node_id, scores in node_scores.items():
+            semantic_score = scores['semantic_score']
+            keyword_score = scores['keyword_score']
+            
+            # Weighted combination
+            final_score = (semantic_weight * semantic_score + 
+                          keyword_weight * keyword_score)
+            
+            # Create new NodeWithScore with blended score
+            blended_node = NodeWithScore(
+                node=scores['node'].node,
+                score=final_score
+            )
+            blended_nodes.append(blended_node)
+        
+        # Sort by final blended score
+        blended_nodes.sort(key=lambda x: x.score, reverse=True)
+        
+        if blended_nodes:
+            logger.info(f"   🎯 Blended to {len(blended_nodes)} nodes, top score: {blended_nodes[0].score:.3f}")
+        
+        return blended_nodes
     
     def chat(
         self,
@@ -444,6 +650,59 @@ class QueryEngine:
                 'db_path': self.settings.chroma_db_path,
                 'collection_name': self.settings.get_collection_name()
             }
+    
+    def get_cache_stats(self) -> Dict:
+        """Get semantic cache statistics"""
+        if self.cache:
+            return self.cache.get_stats()
+        return {"error": "Cache not enabled"}
+    
+    def clear_cache(self):
+        """Clear semantic cache"""
+        if self.cache:
+            self.cache.clear()
+            logger.info("🗑️ Cache cleared successfully")
+        else:
+            logger.warning("Cache not enabled")
+    
+    def cleanup_cache(self):
+        """Cleanup expired cache entries"""
+        if self.cache:
+            deleted = self.cache.cleanup_expired()
+            logger.info(f"🧹 Cleaned up {deleted} expired cache entries")
+            return deleted
+        return 0
+    
+    def add_feedback(self, query: str, response: str, feedback_type: str, 
+                    sources: List[Dict], comment: Optional[str] = None) -> int:
+        """
+        Add user feedback for active learning
+        
+        Args:
+            query: User query
+            response: AI response
+            feedback_type: 'positive' or 'negative'
+            sources: List of source documents
+            comment: Optional user comment
+            
+        Returns:
+            Feedback ID
+        """
+        return self.feedback_manager.add_feedback(
+            query=query,
+            response=response,
+            feedback_type=feedback_type,
+            sources=sources,
+            comment=comment
+        )
+    
+    def get_feedback_stats(self) -> Dict:
+        """Get feedback statistics"""
+        return self.feedback_manager.get_statistics()
+    
+    def get_recent_feedback(self, limit: int = 10) -> List[Dict]:
+        """Get recent feedback entries"""
+        return self.feedback_manager.get_recent_feedback(limit)
 
 
 def main():

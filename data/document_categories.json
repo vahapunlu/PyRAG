@@ -1,6 +1,9 @@
 {
-  "IS3217 2023_unlocked.pdf": {
+  "IS3218 2024.pdf": {
     "category": "Standard",
-    "project": "N/A"
+    "project": "N/A",
+    "standard_no": "IS3218",
+    "date": "2024",
+    "description": "Fire Detection and Alarm Systems – System Planning, Design, Installation, Commissioning, Servicing, and Maintenance"
   }
 }

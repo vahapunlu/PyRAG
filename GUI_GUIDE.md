@@ -41,29 +41,48 @@ python main.py
 
 ### Sidebar Controls
 
-1. **📁 Index Documents**
-   - Process PDF files
-   - Force rebuild option
-   - Progress tracking
-   - Cost warning ($0.50-2.00)
-
-2. **➕ Add PDF Files**
+1. **📁 Add Document**
+   - Create new document entries
+   - Set project/category metadata
    - Browse and select PDFs
    - Auto-copy to data folder
    - Multi-file selection
 
-3. **📊 View Statistics**
+2. **🔗 Cross-Reference**
+   - Search across multiple documents simultaneously
+   - Select documents to search
+   - Get combined results with document sources
+   - Filter by relevance
+
+3. **📄 Auto-Summary**
+   - Extract focused information from large specs
+   - Three modes: Topic Extraction, Requirements List, Cross-Trade Comparison
+   - Quick topic buttons (Electrical, UPS, Generator, etc.)
+   - Export summaries to PDF or text
+   - **Full-screen interface** with left/right panel layout
+
+4. **🗄️ Database Manager**
+   - View all ChromaDB collections
+   - Browse documents and chunks
+   - Edit metadata (project, category, tags)
+   - Export documents to text
+   - Delete documents/collections
+   - Real-time statistics
+
+5. **📊 View Statistics**
    - Database info
    - Node count
    - PDF files list
 
-4. **🗑️ Clear History**
+6. **🗑️ Clear History**
    - Reset chat conversation
    - Confirm before clearing
 
-5. **Settings**
+7. **Settings**
+   - API configuration
+   - Model selection (GPT-4o/DeepSeek)
+   - Temperature settings
    - Toggle source display
-   - (More settings coming)
 
 ---
 
@@ -101,7 +120,9 @@ python main.py
 
 ## ✨ Example Questions
 
-Type these in the chat:
+### Standard Chat Queries
+
+Type these in the main chat:
 
 ```
 What is the current carrying capacity for 2.5mm² copper cable?
@@ -114,6 +135,80 @@ Cable sizing for 32A breaker, PVC conduit, 3 cables
 
 Correction factors for 4-cable group in 35°C ambient
 ```
+
+### Auto-Summary Examples
+
+1. **Topic Extraction**
+   - "Show me all ELECTRICAL sections from LDA spec"
+   - Click 📄 Auto-Summary → Select document → Click ⚡ Electrical
+
+2. **Requirements List**
+   - "List all UPS requirements from the specification"
+   - Click 📄 Auto-Summary → Requirements List → Select doc → Click 🔋 UPS
+
+3. **Cross-Trade Comparison**
+   - "Compare firestopping requirements across all specs"
+   - Click 📄 Auto-Summary → Comparison → Select multiple docs → Click 🧯 Firestopping
+
+### Cross-Reference Examples
+
+```
+Find all voltage drop calculations across all specifications
+
+Show me cable sizing tables from all documents
+
+Search for grounding requirements in all standards
+```
+
+---
+
+## 📄 Auto-Summary Feature Deep Dive
+
+### Full-Screen Interface
+
+Auto-Summary opens in a **full-screen window** with modern layout:
+
+**Left Panel (300px):**
+- Document selection (radio buttons)
+- Quick Topic buttons (8 common topics)
+
+**Right Panel (expandable):**
+- Topic input field
+- Generate/Export buttons
+- Tabbed results view:
+  - **Summary Tab**: LLM-generated structured summary
+  - **Sections Tab**: All extracted sections with page numbers
+
+### Quick Topic Buttons
+
+Pre-configured for common MEP systems:
+- ⚡ **Electrical**: electrical, electric, power, voltage, circuit, wiring
+- 🔋 **UPS**: ups, uninterruptible power, emergency power
+- ⚙️ **Generator**: generator, standby power, backup generator
+- 💡 **Lighting**: lighting, illumination, luminaire, lamp
+- 🔥 **Fire Alarm**: fire alarm, fire detection, smoke detector
+- 🧯 **Firestopping**: firestopping, fire barrier, penetration seal
+- 🔌 **Cable**: cable, conductor, wire, wiring, cabling
+- 🧪 **Testing**: testing, commissioning, verification, inspection
+
+Each button automatically expands the topic with relevant keywords for comprehensive extraction.
+
+### Export Options
+
+- **Text Export**: Plain text with all sections and page numbers
+- **PDF Export**: Formatted report (coming soon - reportlab)
+
+Export format includes:
+- Header with metadata (date, document, topic)
+- LLM summary section
+- Complete extracted sections with page references
+
+### Performance Tips
+
+1. **Use Quick Topics** when possible - optimized keywords
+2. **Be specific** with manual topics - "emergency lighting" vs "lighting"
+3. **Multi-document comparison** takes 5-15 seconds
+4. **Large specs (150+ pages)** process in 2-10 seconds
 
 ---
 
@@ -254,8 +349,17 @@ Check `logs/pyrag_YYYY-MM-DD.log` for detailed information
 
 ---
 
-## 🎯 Coming Soon
+## 🎯 Recent Features & Coming Soon
 
+### ✅ Recently Added
+- [x] **Auto-Summary Engine** - Extract focused info from large specs
+- [x] **Cross-Reference Search** - Search multiple documents at once
+- [x] **Database Manager** - Visual ChromaDB management
+- [x] **DeepSeek Integration** - 90% cost reduction vs GPT-4o
+- [x] **Metadata Management** - Project/category tagging system
+- [x] **Full-Screen Auto-Summary** - Modern left/right panel layout
+
+### 🚧 Coming Soon
 - [ ] Export chat to PDF/TXT
 - [ ] Dark/Light theme toggle
 - [ ] Font size controls
@@ -263,7 +367,8 @@ Check `logs/pyrag_YYYY-MM-DD.log` for detailed information
 - [ ] Favorite questions
 - [ ] Multi-language interface
 - [ ] Custom system prompts
-- [ ] Offline mode indicator
+- [ ] PDF export for Auto-Summary (reportlab integration)
+- [ ] Quantity Takeoff (technical drawing analysis)
 
 ---
 

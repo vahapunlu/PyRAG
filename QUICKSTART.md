@@ -36,6 +36,14 @@ python main.py gui
 python main.py
 ```
 
+**GUI Features:**
+- 💬 **Chat**: Natural Q&A with your documents
+- 📄 **Auto-Summary**: Extract focused info from large specs (full-screen interface)
+- 🔗 **Cross-Reference**: Search across multiple documents simultaneously
+- 🗄️ **Database Manager**: Visual ChromaDB management with metadata editing
+- 📁 **Add Document**: Upload PDFs with project/category metadata
+- 📊 **Statistics**: View database stats and document counts
+
 #### 💻 CLI Mode (Advanced)
 
 ```powershell
@@ -64,6 +72,12 @@ python src/utils.py
 
 # Indexing check
 python main.py stats
+
+# Test Auto-Summary
+# In GUI: Click "📄 Auto-Summary" → Select document → Click ⚡ Electrical
+
+# Test Cross-Reference
+# In GUI: Click "🔗 Cross-Reference" → Select documents → Enter query
 ```
 
 ## 🆘 Having Issues?

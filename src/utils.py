@@ -274,6 +274,7 @@ INSTRUCTIONS:
 3. Always cite sources (Document name, Section, Page, Table)
 4. When reading tables, verify row/column carefully
 5. Show calculations with units when needed
+6. **IMPORTANT: Always answer in the SAME LANGUAGE as the question. If the user asks in Turkish, answer in Turkish. If in English, answer in English.**
 
 ANSWER FORMAT:
 • Direct answer first

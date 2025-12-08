@@ -11,7 +11,7 @@ from .constants import *
 class ChatArea:
     """Chat display and input component with Quick Filter bar"""
     
-    def __init__(self, parent, send_callback, filter_change_callback):
+    def __init__(self, parent, send_callback, filter_change_callback, feedback_callback=None):
         """
         Initialize chat area
         
@@ -19,11 +19,16 @@ class ChatArea:
             parent: Parent window
             send_callback: Callback function for sending messages
             filter_change_callback: Callback when filters change
+            feedback_callback: Callback function for feedback (query, response, sources, feedback_type)
         """
         self.parent = parent
         self.send_callback = send_callback
         self.filter_change_callback = filter_change_callback
+        self.feedback_callback = feedback_callback
         self.chat_history = []
+        self.last_query = None
+        self.last_response = None
+        self.last_sources = []
         
         # Active filters
         self.active_filters = {
@@ -46,6 +51,7 @@ class ChatArea:
         self._create_header()
         self._create_quick_filter()
         self._create_chat_display()
+        self._create_feedback_area()
         self._create_input_area()
         self.display_welcome_message()
     
@@ -164,8 +170,15 @@ class ChatArea:
             
         else:
             # Show documents with this category in 2nd dropdown
-            docs_in_category = [doc['name'] for doc in self.all_documents 
-                              if selected in doc.get('categories', [])]
+            # Store mapping: display_name -> name
+            self.doc_name_mapping = {}
+            docs_in_category = []
+            
+            for doc in self.all_documents:
+                if selected in doc.get('categories', []):
+                    display = doc.get('display_name', doc['name'])
+                    docs_in_category.append(display)
+                    self.doc_name_mapping[display] = doc['name']
             
             if docs_in_category:
                 doc_list = ["All Documents"] + sorted(docs_in_category)
@@ -197,8 +210,17 @@ class ChatArea:
                 self.active_filters['document'] = None
             else:
                 # Show documents for this project in 3rd dropdown
-                docs_in_project = [doc['name'] for doc in self.all_documents 
-                                  if doc.get('project') == selected]
+                # Store mapping: display_name -> name
+                if not hasattr(self, 'doc_name_mapping'):
+                    self.doc_name_mapping = {}
+                
+                docs_in_project = []
+                for doc in self.all_documents:
+                    if doc.get('project') == selected:
+                        display = doc.get('display_name', doc['name'])
+                        docs_in_project.append(display)
+                        self.doc_name_mapping[display] = doc['name']
+                
                 doc_list = ["All Documents"] + sorted(docs_in_project)
                 self.proj_doc_filter_var.set("All Documents")
                 self.proj_doc_filter.configure(values=doc_list)
@@ -209,7 +231,9 @@ class ChatArea:
             if selected == "All Documents":
                 self.active_filters['document'] = None
             else:
-                self.active_filters['document'] = selected
+                # Convert display name to actual file name for filter
+                actual_name = self.doc_name_mapping.get(selected, selected) if hasattr(self, 'doc_name_mapping') else selected
+                self.active_filters['document'] = actual_name
                 self.active_filters['project'] = None
             # Reset 3rd dropdown
             self.proj_doc_filter_var.set("All Documents")
@@ -224,7 +248,9 @@ class ChatArea:
         if selected == "All Documents":
             self.active_filters['document'] = None
         else:
-            self.active_filters['document'] = selected
+            # Convert display name to actual file name for filter
+            actual_name = self.doc_name_mapping.get(selected, selected) if hasattr(self, 'doc_name_mapping') else selected
+            self.active_filters['document'] = actual_name
         
         self._notify_filter_change()
     
@@ -304,10 +330,66 @@ class ChatArea:
         )
         self.chat_display.grid(row=0, column=0, sticky="nsew", padx=10, pady=10)
     
+    def _create_feedback_area(self):
+        """Create feedback buttons area"""
+        self.feedback_frame = ctk.CTkFrame(self.main_frame, fg_color=COLORS['dark_bg'], height=50)
+        self.feedback_frame.grid(row=3, column=0, sticky="ew", padx=20, pady=(0, 10))
+        self.feedback_frame.grid_remove()  # Hidden by default
+        
+        # Left side: Label
+        ctk.CTkLabel(
+            self.feedback_frame,
+            text="💬 Was this answer helpful?",
+            font=ctk.CTkFont(size=FONT_SIZES['small'])
+        ).pack(side="left", padx=15, pady=10)
+        
+        # Right side: Buttons
+        btn_container = ctk.CTkFrame(self.feedback_frame, fg_color="transparent")
+        btn_container.pack(side="right", padx=15, pady=10)
+        
+        # Thumbs up
+        self.thumbs_up_btn = ctk.CTkButton(
+            btn_container,
+            text="👍 Helpful",
+            command=lambda: self._on_feedback("positive"),
+            width=100,
+            height=35,
+            fg_color=COLORS['success'],
+            hover_color=COLORS['success_hover'],
+            font=ctk.CTkFont(size=FONT_SIZES['tiny'])
+        )
+        self.thumbs_up_btn.pack(side="left", padx=5)
+        
+        # Thumbs down
+        self.thumbs_down_btn = ctk.CTkButton(
+            btn_container,
+            text="👎 Not Helpful",
+            command=lambda: self._on_feedback("negative"),
+            width=120,
+            height=35,
+            fg_color=COLORS['danger'],
+            hover_color=COLORS['danger_hover'],
+            font=ctk.CTkFont(size=FONT_SIZES['tiny'])
+        )
+        self.thumbs_down_btn.pack(side="left", padx=5)
+        
+        # Comment button
+        self.comment_btn = ctk.CTkButton(
+            btn_container,
+            text="📝 Comment",
+            command=self._on_comment,
+            width=100,
+            height=35,
+            fg_color="transparent",
+            border_width=1,
+            font=ctk.CTkFont(size=FONT_SIZES['tiny'])
+        )
+        self.comment_btn.pack(side="left", padx=5)
+    
     def _create_input_area(self):
         """Create message input area"""
         input_frame = ctk.CTkFrame(self.main_frame, corner_radius=0)
-        input_frame.grid(row=3, column=0, sticky="ew", padx=0, pady=0)
+        input_frame.grid(row=4, column=0, sticky="ew", padx=0, pady=0)
         input_frame.grid_columnconfigure(0, weight=1)
         
         self.input_entry = ctk.CTkEntry(
@@ -333,13 +415,15 @@ class ChatArea:
         """Display welcome message"""
         self.append_message(MESSAGES['welcome'], "system")
     
-    def append_message(self, text, sender="user"):
+    def append_message(self, text, sender="user", query=None, sources=None):
         """
         Append message to chat display
         
         Args:
             text: Message text
             sender: Message sender ("user", "assistant", "system", "source")
+            query: Original query (for feedback tracking)
+            sources: Source documents (for feedback tracking)
         """
         self.chat_display.configure(state="normal")
         
@@ -347,11 +431,22 @@ class ChatArea:
             prefix = "\n\n❓ YOU:\n"
             self.chat_display.insert("end", prefix, "user_tag")
             self.chat_display.insert("end", text + "\n")
+            # Store query for feedback
+            self.last_query = text
+            # Hide feedback buttons when new question is asked
+            self.feedback_frame.grid_remove()
             
         elif sender == "assistant":
             prefix = "\n✅ ASSISTANT:\n"
             self.chat_display.insert("end", prefix, "assistant_tag")
             self.chat_display.insert("end", text + "\n")
+            # Store response for feedback
+            self.last_response = text
+            if sources:
+                self.last_sources = sources
+            # Show feedback buttons
+            if self.feedback_callback:
+                self.feedback_frame.grid()
             
         elif sender == "system":
             self.chat_display.insert("end", text + "\n", "system_tag")
@@ -361,6 +456,63 @@ class ChatArea:
         
         self.chat_display.configure(state="disabled")
         self.chat_display.see("end")
+    
+    def _on_feedback(self, feedback_type):
+        """Handle feedback button click"""
+        if not self.feedback_callback or not self.last_query or not self.last_response:
+            return
+        
+        # Call parent callback
+        self.feedback_callback(
+            query=self.last_query,
+            response=self.last_response,
+            sources=self.last_sources,
+            feedback_type=feedback_type,
+            comment=None
+        )
+        
+        # Show confirmation
+        emoji = "✅" if feedback_type == "positive" else "📝"
+        self.chat_display.configure(state="normal")
+        self.chat_display.insert("end", f"\n{emoji} Thank you for your feedback!\n", "system_tag")
+        self.chat_display.configure(state="disabled")
+        self.chat_display.see("end")
+        
+        # Hide feedback buttons
+        self.feedback_frame.grid_remove()
+    
+    def _on_comment(self):
+        """Handle comment button click - open dialog for comment"""
+        from tkinter import simpledialog
+        
+        if not self.feedback_callback or not self.last_query or not self.last_response:
+            return
+        
+        # Ask for comment
+        comment = simpledialog.askstring(
+            "Feedback Comment",
+            "Please provide additional feedback:",
+            parent=self.parent
+        )
+        
+        if comment:
+            # Assume negative feedback if they're leaving a comment
+            self.feedback_callback(
+                query=self.last_query,
+                response=self.last_response,
+                sources=self.last_sources,
+                feedback_type="negative",
+                comment=comment
+            )
+            
+            # Show confirmation
+            self.chat_display.configure(state="normal")
+            self.chat_display.insert("end", f"\n💬 Thank you for your detailed feedback!\n", "system_tag")
+            self.chat_display.configure(state="disabled")
+            self.chat_display.see("end")
+            
+            # Hide feedback buttons
+            self.feedback_frame.grid_remove()
     
     def clear_chat(self):
         """Clear all chat messages"""
