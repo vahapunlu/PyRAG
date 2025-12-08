@@ -580,10 +580,12 @@ class QueryEngine:
             
             # Save to query history
             query_duration = time.time() - start_time
+            query_analysis = self.query_analyzer.analyze(question) if self.query_analyzer else {}
+            query_intent = query_analysis.get('intent')
             history_metadata = {
                 'cache_hit': False,
                 'filters': cache_filters if self.use_response_cache else None,
-                'query_type': self.query_analyzer.analyze(question).get('intent') if self.query_analyzer else None
+                'query_type': query_intent.value if query_intent else None
             }
             self.query_history.add_query(
                 query=question,
