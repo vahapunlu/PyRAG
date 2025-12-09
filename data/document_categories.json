@@ -1,9 +1,23 @@
 {
+  "NSAI - National Rules for Electrical Installations (Edition 5.0).pdf": {
+    "category": "Standard",
+    "project": "N/A",
+    "standard_no": "IS10101",
+    "date": "2020",
+    "description": "NSAI - National Rules for Electrical Installations (Edition 5.0)"
+  },
   "IS3218 2024.pdf": {
     "category": "Standard",
     "project": "N/A",
     "standard_no": "IS3218",
     "date": "2024",
     "description": "Fire Detection and Alarm Systems – System Planning, Design, Installation, Commissioning, Servicing, and Maintenance"
+  },
+  "IS3217.pdf": {
+    "category": "Standard",
+    "project": "N/A",
+    "standard_no": "IS3217",
+    "date": "2023",
+    "description": "Emergency Lighting"
   }
 }

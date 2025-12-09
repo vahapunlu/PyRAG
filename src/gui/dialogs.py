@@ -10,6 +10,9 @@ from .settings_dialog import SettingsDialog
 from .database_manager_dialog import DatabaseManagerDialog
 from .cross_reference_dialog import CrossReferenceDialog
 from .auto_summary_dialog import AutoSummaryDialog
+from .query_history_dialog import QueryHistoryDialog
+from .export_dialog import ExportDialog
+from .graph_visualization_dialog import GraphVisualizationDialog
 
 __all__ = [
     'NewDocumentDialog',
@@ -17,4 +20,7 @@ __all__ = [
     'DatabaseManagerDialog',
     'CrossReferenceDialog',
     'AutoSummaryDialog',
+    'QueryHistoryDialog',
+    'ExportDialog',
+    'GraphVisualizationDialog',
 ]

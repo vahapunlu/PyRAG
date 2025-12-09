@@ -27,6 +27,11 @@ tiktoken
 loguru
 tqdm
 
+# Graph Visualization
+pyvis
+plotly
+pywebview  # Embedded HTML viewer for interactive graphs
+
 # Modern Windows GUI
 customtkinter
 pillow

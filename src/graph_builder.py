@@ -235,6 +235,71 @@ class GraphBuilder:
         if not self.graph_manager:
             return {}
         return self.graph_manager.get_graph_statistics()
+    
+    def add_document(self, doc_id: str, text: str, metadata: Dict):
+        """
+        Add a single document to the graph
+        
+        Args:
+            doc_id: Document ID
+            text: Document text content
+            metadata: Document metadata (file_name, section_number, etc.)
+        """
+        if not self.graph_manager:
+            logger.warning("⚠️ Graph manager not available")
+            return
+        
+        try:
+            file_name = metadata.get('file_name', 'Unknown')
+            section_number = metadata.get('section_number', '')
+            section_title = metadata.get('section_title', '')
+            
+            # Create document node if not exists
+            self.graph_manager.create_document_node(
+                name=file_name,
+                properties=metadata
+            )
+            
+            # If has section info, create section node
+            if section_number:
+                section_props = {
+                    'title': section_title,
+                    'page': metadata.get('page_number', '')
+                }
+                
+                self.graph_manager.create_section_node(
+                    document_name=file_name,
+                    section_number=section_number,
+                    properties=section_props
+                )
+            
+            # Extract and add references
+            extracted_refs = self.reference_extractor.extract_all(text)
+            
+            # Process standard references
+            for ref in extracted_refs['standards']:
+                # Create standard node
+                self.graph_manager.create_standard_node(
+                    name=ref['full'],
+                    properties={
+                        'type': ref['type'],
+                        'number': ref['number']
+                    }
+                )
+                
+                # Create REFERS_TO relationship
+                source_name = section_number if section_number else file_name
+                source_type = "SECTION" if section_number else "DOCUMENT"
+                
+                self.graph_manager.create_refers_to_relationship(
+                    source_name=source_name,
+                    target_standard=ref['full'],
+                    source_type=source_type,
+                    properties={'context': text[:200]}
+                )
+            
+        except Exception as e:
+            logger.warning(f"Failed to add document to graph: {e}")
 
 
 def build_graph_from_chroma(chroma_path: str = "./chroma_db", 

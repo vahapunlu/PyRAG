@@ -38,6 +38,8 @@ class GraphManager:
         """
         self.uri = uri
         self.username = username
+        self.user = username  # Alias for compatibility
+        self.password = password
         self.database = database
         
         try:

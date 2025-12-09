@@ -406,20 +406,20 @@ class NewDocumentDialog(ctk.CTkToplevel):
                 status_label.pack(side="right", padx=(5, 5))
                 item["status_widget"] = status_label
                 
-                # Info label (for chunk count)
+                # Info label (for chunk count and progress percentage)
                 info_label = ctk.CTkLabel(
                     row2,
                     text="",
-                    font=ctk.CTkFont(size=FONT_SIZES['tiny']),
+                    font=ctk.CTkFont(size=FONT_SIZES['tiny'], weight="bold"),
                     text_color="#00aaff",
-                    width=80
+                    width=100
                 )
                 info_label.pack(side="right", padx=(5, 5))
                 item["info_widget"] = info_label
                 
-                # Progress bar (hidden initially)
-                progress_bar = ctk.CTkProgressBar(row2, width=120, height=8, mode="indeterminate")
-                progress_bar.pack(side="right", padx=(5, 5))
+                # Progress bar (hidden initially, larger size)
+                progress_bar = ctk.CTkProgressBar(row2, width=180, height=12, mode="indeterminate")
+                progress_bar.pack(side="right", padx=(10, 5))
                 progress_bar.pack_forget()  # Hide initially
                 item["progress_widget"] = progress_bar
         
@@ -444,19 +444,32 @@ class NewDocumentDialog(ctk.CTkToplevel):
         thread.daemon = True
         thread.start()
     
-    def update_status(self, file_path, status, info_text=""):
+    def update_status(self, file_path, status, info_text="", progress_percent=None):
         """Update file status indicator"""
         for item in self.selected_items:
             if item["path"] == file_path:
-                # Update info label (chunk count, etc.)
-                if "info_widget" in item and info_text:
-                    item["info_widget"].configure(text=info_text)
+                # Update info label (chunk count, progress percent, etc.)
+                if "info_widget" in item:
+                    if progress_percent is not None:
+                        # Show percentage during indexing
+                        item["info_widget"].configure(text=f"{progress_percent}%")
+                    elif info_text:
+                        item["info_widget"].configure(text=info_text)
                 
-                # Update progress bar visibility
+                # Update progress bar
                 if "progress_widget" in item:
                     if status in ["copying", "indexing"]:
-                        item["progress_widget"].pack(side="right", padx=(5, 5))
-                        item["progress_widget"].start()
+                        if progress_percent is not None:
+                            # Switch to determinate mode
+                            item["progress_widget"].configure(mode="determinate")
+                            item["progress_widget"].set(progress_percent / 100.0)
+                        else:
+                            # Indeterminate mode
+                            item["progress_widget"].configure(mode="indeterminate")
+                            item["progress_widget"].start()
+                        
+                        if not item["progress_widget"].winfo_ismapped():
+                            item["progress_widget"].pack(side="right", padx=(5, 5))
                     else:
                         item["progress_widget"].stop()
                         item["progress_widget"].pack_forget()
@@ -541,14 +554,29 @@ class NewDocumentDialog(ctk.CTkToplevel):
                     self.after(0, self.update_status, file_path, "indexing", "parsing...")
                     self.after(0, update_button, f"Indexing {idx}/{total_files}: {file_name}")
                     
-                    # Use ingest_single_file method
+                    # Progress callback to update UI
+                    def make_progress_callback(fp):
+                        def callback(stage, percent):
+                            stage_labels = {
+                                'parsing': '📖 Parsing',
+                                'chunking': '✂️ Chunking',
+                                'indexing': '🔍 Indexing',
+                                'syncing': '🔄 Syncing',
+                                'complete': '✅ Complete'
+                            }
+                            stage_text = stage_labels.get(stage, stage)
+                            self.after(0, self.update_status, fp, "indexing", stage_text, percent)
+                        return callback
+                    
+                    # Use ingest_single_file method with progress callback
                     result = ingestion.ingest_single_file(
                         file_path=item["copied_path"],
                         category=item.get("category", "Uncategorized"),
                         project=item.get("project", "N/A"),
                         standard_no=item.get("standard_no", ""),
                         date=item.get("date", ""),
-                        description=item.get("description", "")
+                        description=item.get("description", ""),
+                        progress_callback=make_progress_callback(file_path)
                     )
                     
                     if result["success"]:

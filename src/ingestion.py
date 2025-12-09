@@ -32,6 +32,7 @@ from llama_index.vector_stores.chroma import ChromaVectorStore
 
 from loguru import logger
 from src.utils import get_settings, setup_logger, validate_files, load_document_categories
+from src.graph_builder import GraphBuilder
 
 
 class DocumentIngestion:
@@ -49,6 +50,7 @@ class DocumentIngestion:
             
         self._setup_llama_index()
         self._setup_vector_store()
+        self._setup_graph_builder()
         
     def _setup_llama_index(self):
         """Configure LlamaIndex global settings"""
@@ -113,6 +115,19 @@ class DocumentIngestion:
         self.vector_store = ChromaVectorStore(
             chroma_collection=self.chroma_collection
         )
+    
+    def _setup_graph_builder(self):
+        """Initialize Graph Builder for Neo4j integration"""
+        try:
+            self.graph_builder = GraphBuilder(
+                chroma_path=self.settings.chroma_db_path,
+                collection_name=self.settings.get_collection_name()
+            )
+            logger.success("✅ Graph Builder initialized for Neo4j sync")
+        except Exception as e:
+            logger.warning(f"⚠️  Graph Builder not available: {e}")
+            logger.warning("   Documents will be indexed to vector store only (Neo4j disabled)")
+            self.graph_builder = None
     
     def extract_section_info(self, text: str) -> Dict[str, str]:
         """
@@ -183,16 +198,23 @@ class DocumentIngestion:
         """
         logger.info(f"📖 Reading file: {file_path.name}")
 
-        # Try to override categories/projects from stored per-file mapping (by filename)
+        # Get project info from stored mapping, but prefer parameter category over stored category
         stored_mapping = load_document_categories()
         file_key = file_path.name
         file_project = None
+        
         if file_key in stored_mapping:
             entry = stored_mapping[file_key]
-            file_category = entry.get("category")
             file_project = entry.get("project")
-            categories = [file_category] if file_category else None
-            logger.info(f"   Using stored category for {file_key}: {file_category}")
+            
+            # Only use stored category if no category parameter provided
+            if not categories:
+                file_category = entry.get("category")
+                categories = [file_category] if file_category else None
+                logger.info(f"   Using stored category for {file_key}: {file_category}")
+            else:
+                logger.info(f"   Using parameter category for {file_key}: {categories[0]}")
+            
             if file_project:
                 logger.info(f"   Using stored project for {file_key}: {file_project}")
         elif categories:
@@ -409,6 +431,24 @@ class DocumentIngestion:
             show_progress=True
         )
         
+        # Sync to Neo4j Graph Database
+        if self.graph_builder:
+            logger.info("📊 Syncing documents to Neo4j knowledge graph...")
+            if progress_callback:
+                progress_callback("Syncing to knowledge graph...", 95)
+            
+            for doc in all_documents:
+                try:
+                    self.graph_builder.add_document(
+                        doc_id=doc.doc_id,
+                        text=doc.text,
+                        metadata=doc.metadata
+                    )
+                except Exception as e:
+                    logger.warning(f"   Failed to sync document to Neo4j: {e}")
+            
+            logger.success("✅ Neo4j sync complete")
+        
         if progress_callback:
             progress_callback("Indexing complete!", 100)
             
@@ -422,7 +462,8 @@ class DocumentIngestion:
     
     def ingest_single_file(self, file_path: str, category: str = "Uncategorized", 
                           project: str = "N/A", standard_no: str = "", 
-                          date: str = "", description: str = "") -> dict:
+                          date: str = "", description: str = "",
+                          progress_callback: Optional[Callable[[str, int], None]] = None) -> dict:
         """
         Index a single file into the existing collection with hierarchical chunking
         
@@ -433,6 +474,8 @@ class DocumentIngestion:
             standard_no: Standard number (e.g., IEC 60364-5-52)
             date: Document date (e.g., 2024-03)
             description: Brief description of the document
+            progress_callback: Optional callback function(stage: str, percent: int)
+                             Stages: 'parsing', 'chunking', 'indexing', 'syncing'
             
         Returns:
             Dict with success status and chunk count: {"success": bool, "chunks": int, "leaf_chunks": int}
@@ -441,8 +484,15 @@ class DocumentIngestion:
             path = Path(file_path)
             logger.info(f"📄 Indexing single file: {path.name}")
             
+            # Stage 1: Parsing (0-25%)
+            if progress_callback:
+                progress_callback('parsing', 0)
+            
             # Parse file with category
             docs = self.parse_file(path, categories=[category])
+            
+            if progress_callback:
+                progress_callback('parsing', 25)
             
             if not docs:
                 logger.error(f"❌ Failed to parse {path.name}")
@@ -461,6 +511,10 @@ class DocumentIngestion:
             original_count = len(docs)
             logger.info(f"📚 Parsed {original_count} pages from {path.name}")
             
+            # Stage 2: Chunking (25-50%)
+            if progress_callback:
+                progress_callback('chunking', 25)
+            
             # Create hierarchical chunks (same as bulk ingestion)
             logger.info("🔄 Creating hierarchical chunks...")
             node_parser = HierarchicalNodeParser.from_defaults(
@@ -473,6 +527,13 @@ class DocumentIngestion:
             leaf_nodes = get_leaf_nodes(nodes)
             
             logger.info(f"📊 Created {len(nodes)} total nodes ({len(leaf_nodes)} leaf nodes)")
+            
+            if progress_callback:
+                progress_callback('chunking', 50)
+            
+            # Stage 3: Indexing (50-85%)
+            if progress_callback:
+                progress_callback('indexing', 50)
             
             # Create storage context
             storage_context = StorageContext.from_defaults(
@@ -487,8 +548,39 @@ class DocumentIngestion:
             
             # Insert leaf nodes (with parent context) into existing index
             logger.info("🔄 Adding hierarchical nodes to vector index...")
-            for node in leaf_nodes:
+            total_nodes = len(leaf_nodes)
+            for idx, node in enumerate(leaf_nodes):
                 existing_index.insert_nodes([node])
+                if progress_callback and idx % max(1, total_nodes // 10) == 0:
+                    percent = 50 + int((idx / total_nodes) * 35)
+                    progress_callback('indexing', percent)
+            
+            if progress_callback:
+                progress_callback('indexing', 85)
+            
+            # Stage 4: Syncing to Neo4j (85-100%)
+            if self.graph_builder:
+                if progress_callback:
+                    progress_callback('syncing', 85)
+                
+                logger.info("📊 Syncing to Neo4j knowledge graph...")
+                total_docs = len(docs)
+                for idx, doc in enumerate(docs):
+                    try:
+                        self.graph_builder.add_document(
+                            doc_id=doc.doc_id,
+                            text=doc.text,
+                            metadata=doc.metadata
+                        )
+                        if progress_callback:
+                            percent = 85 + int((idx / total_docs) * 15)
+                            progress_callback('syncing', percent)
+                    except Exception as e:
+                        logger.warning(f"   Failed to sync to Neo4j: {e}")
+                logger.success("✅ Neo4j sync complete")
+            
+            if progress_callback:
+                progress_callback('complete', 100)
             
             logger.success(f"✅ Successfully indexed {path.name}")
             logger.info(f"   Original pages: {original_count}")

@@ -66,6 +66,9 @@ class PyRAGApp(ctk.CTk):
             'open_database': self.open_database_manager,
             'open_cross_reference': self.open_cross_reference_dialog,
             'open_auto_summary': self.open_auto_summary_dialog,
+            'show_history': self.show_history,
+            'export_results': self.export_results,
+            'view_graph': self.view_graph,
         })
         
         # Chat area with filter callback
@@ -120,9 +123,11 @@ class PyRAGApp(ctk.CTk):
             messagebox.showwarning("Not Ready", "System is still initializing. Please wait.")
             return
         
+        # Clear input BEFORE disabling
+        self.chat.clear_input()
+        
         # Disable input
         self.chat.set_input_state(False)
-        self.chat.clear_input()
         
         # Display user message
         self.chat.append_message(question, "user")
@@ -239,6 +244,7 @@ class PyRAGApp(ctk.CTk):
                     documents.append({
                         'name': doc_info['file_name'],  # Use file_name for search filter
                         'display_name': doc_info['display_name'],  # Use display_name for UI
+                        'standard_no': doc_info.get('standard_no', ''),  # Add standard_no
                         'categories': list(doc_info['categories']),
                         'project': doc_info['project']
                     })
@@ -605,6 +611,120 @@ class PyRAGApp(ctk.CTk):
             self.query_engine.clear_cache()
             self.chat.append_message("\n⚡ Semantic cache cleared successfully", "system")
             messagebox.showinfo("Success", f"Cache cleared!\n\n{total_entries} cached queries removed.")
+    
+    def show_history(self):
+        """Show query history dialog"""
+        if not self.query_engine:
+            messagebox.showwarning(
+                "Not Ready",
+                "System is still initializing. Please wait."
+            )
+            return
+        
+        try:
+            from .dialogs import QueryHistoryDialog
+            dialog = QueryHistoryDialog(self, self.query_engine)
+        except Exception as e:
+            logger.error(f"Error opening query history dialog: {e}")
+            messagebox.showerror(
+                "Error",
+                f"Failed to open query history:\n{str(e)}"
+            )
+    
+    def export_results(self):
+        """Export last query result"""
+        if not self.query_engine:
+            messagebox.showwarning(
+                "Not Ready",
+                "System is still initializing. Please wait."
+            )
+            return
+        
+        try:
+            # Get last query from history
+            history = self.query_engine.query_history
+            recent = history.get_recent_queries(limit=1)
+            
+            if not recent:
+                messagebox.showinfo(
+                    "No Data",
+                    "No query results to export. Please run a query first."
+                )
+                return
+            
+            last_query = recent[0]
+            
+            # Open export dialog
+            from .dialogs import ExportDialog
+            dialog = ExportDialog(self, self.query_engine, last_query)
+            
+        except Exception as e:
+            logger.error(f"Error opening export dialog: {e}")
+            messagebox.showerror(
+                "Error",
+                f"Failed to open export dialog:\n{str(e)}"
+            )
+    
+    def view_graph(self):
+        """View knowledge graph visualization"""
+        if not self.query_engine:
+            messagebox.showwarning(
+                "Not Ready",
+                "System is still initializing. Please wait."
+            )
+            return
+        
+        try:
+            # Check if Neo4j/graph is available
+            has_neo4j = False
+            if hasattr(self.query_engine, 'graph_retriever') and self.query_engine.graph_retriever:
+                if hasattr(self.query_engine.graph_retriever, 'graph_manager') and self.query_engine.graph_retriever.graph_manager:
+                    has_neo4j = True
+            
+            if not has_neo4j:
+                messagebox.showinfo(
+                    "Feature Unavailable",
+                    "Graph visualization requires Neo4j to be configured.\n\n"
+                    "This feature shows relationships between documents and concepts."
+                )
+                return
+            
+            # Initialize graph visualizer if not already done
+            if not hasattr(self.query_engine, 'graph_visualizer') or not self.query_engine.graph_visualizer:
+                try:
+                    # Get Neo4j credentials from graph_retriever
+                    graph_manager = self.query_engine.graph_retriever.graph_manager
+                    from src.graph_visualizer import get_graph_visualizer
+                    self.query_engine.graph_visualizer = get_graph_visualizer(
+                        neo4j_uri=graph_manager.uri,
+                        neo4j_user=graph_manager.user,
+                        neo4j_password=graph_manager.password
+                    )
+                    
+                    if not self.query_engine.graph_visualizer:
+                        raise Exception("Failed to create graph visualizer")
+                        
+                except Exception as e:
+                    logger.error(f"Failed to initialize graph visualizer: {e}")
+                    import traceback
+                    logger.error(traceback.format_exc())
+                    messagebox.showerror(
+                        "Feature Unavailable",
+                        "Graph visualization requires Neo4j to be configured.\n\n"
+                        f"Error: {str(e)}"
+                    )
+                    return
+            
+            # Open graph visualization dialog
+            from .dialogs import GraphVisualizationDialog
+            dialog = GraphVisualizationDialog(self, self.query_engine)
+            
+        except Exception as e:
+            logger.error(f"Error opening graph visualization: {e}")
+            messagebox.showerror(
+                "Error",
+                f"Failed to open graph visualization:\n{str(e)}"
+            )
 
 
 def main():

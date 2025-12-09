@@ -5,6 +5,7 @@ Handles chat display, message rendering, and quick filters.
 """
 
 import customtkinter as ctk
+from loguru import logger
 from .constants import *
 
 
@@ -176,10 +177,18 @@ class ChatArea:
             docs_in_category = []
             
             for doc in self.all_documents:
+                # Check if document belongs to this category
                 if selected in doc.get('categories', []):
-                    display = doc.get('display_name', doc['name'])
-                    docs_in_category.append(display)
-                    self.doc_name_mapping[display] = doc['name']
+                    # For "Standard" category, prefer standard_no if available
+                    if selected == "Standard" and 'standard_no' in doc and doc['standard_no']:
+                        display = doc['standard_no']
+                    else:
+                        display = doc.get('display_name', doc['name'])
+                    
+                    # Add to list if not already there
+                    if display not in docs_in_category:
+                        docs_in_category.append(display)
+                        self.doc_name_mapping[display] = doc['name']
             
             if docs_in_category:
                 doc_list = ["All Documents"] + sorted(docs_in_category)

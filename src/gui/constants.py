@@ -41,22 +41,23 @@ FONT_SIZES = {
     'mini': 10,
 }
 
-# Button Heights (based on golden ratio)
+# Button Heights (optimized for compact layout)
 BUTTON_HEIGHTS = {
-    'primary': int(40 * PHI),      # ~65px
-    'secondary': 40,                # 40px
-    'tertiary': int(40 / PHI),     # ~25px
-    'small': 32,
+    'primary': 45,                  # Primary action button
+    'secondary': 36,                # Secondary buttons
+    'tertiary': 32,                 # Tertiary buttons
+    'small': 28,
     'tiny': 24,
 }
 
-# Spacing (based on golden ratio)
+# Spacing (optimized for visual balance)
 SPACING = {
-    'major': int(20 * PHI),        # ~32px
-    'minor': int(20 / PHI),        # ~12px
-    'standard': 20,
-    'small': 10,
-    'tiny': 5,
+    'major': 20,                    # Major section spacing
+    'minor': 8,                     # Minor spacing between buttons
+    'section': 16,                  # Section header spacing
+    'standard': 12,
+    'small': 6,
+    'tiny': 4,
 }
 
 # Window Sizes
