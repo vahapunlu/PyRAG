@@ -56,18 +56,70 @@ class ChatArea:
         self._create_feedback_area()
         self._create_input_area()
         self.display_welcome_message()
+        
+        # Initialize follow-up frame reference
+        self.followup_frame = None
     
     def _create_header(self):
-        """Create chat header"""
+        """Create chat header with query templates"""
         header_frame = ctk.CTkFrame(self.main_frame, height=60, corner_radius=0)
         header_frame.grid(row=0, column=0, sticky="ew", padx=0, pady=0)
-        header_frame.grid_columnconfigure(0, weight=1)
+        header_frame.grid_columnconfigure(1, weight=1)
         
         ctk.CTkLabel(
             header_frame,
             text="💬 Ask Your Questions",
             font=ctk.CTkFont(size=FONT_SIZES['subtitle'], weight="bold")
         ).grid(row=0, column=0, padx=30, pady=15, sticky="w")
+        
+        # Query Templates dropdown
+        self.template_var = ctk.StringVar(value="📝 Templates")
+        self.template_menu = ctk.CTkOptionMenu(
+            header_frame,
+            variable=self.template_var,
+            values=[
+                "📝 Templates",
+                "───────────────",
+                "What is the {specification} for {system}?",
+                "List all requirements for {topic}",
+                "What are the testing requirements?",
+                "Compare {doc1} vs {doc2} for {topic}",
+                "What is the cable sizing for {current}A?",
+                "What are the IP ratings required?",
+                "Summarize the {section} section",
+                "What are the safety requirements?",
+            ],
+            command=self._on_template_select,
+            width=280,
+            height=35,
+            font=ctk.CTkFont(size=FONT_SIZES['tiny']),
+            fg_color=COLORS.get('dark_bg', '#2b2b2b'),
+            button_color=COLORS.get('primary', '#3498db'),
+            button_hover_color=COLORS.get('primary_hover', '#2980b9')
+        )
+        self.template_menu.grid(row=0, column=1, padx=30, pady=15, sticky="e")
+    
+    def _on_template_select(self, template):
+        """Handle template selection"""
+        # Reset dropdown to default
+        self.template_var.set("📝 Templates")
+        
+        # Skip separator and header
+        if template.startswith("──") or template == "📝 Templates":
+            return
+        
+        # Insert template into input field
+        self.input_entry.delete(0, "end")
+        self.input_entry.insert(0, template)
+        self.input_entry.focus_set()
+        
+        # Select placeholder text for easy replacement
+        # Find first { and last } to highlight
+        text = template
+        start = text.find('{')
+        if start != -1:
+            self.input_entry.icursor(start)
+            self.input_entry.selection_range(start, start + text[start:].find('}') + 1)
     
     def _create_quick_filter(self):
         """Create quick filter bar above chat"""
@@ -325,6 +377,39 @@ class ChatArea:
         """Get currently active filters"""
         return {k: v for k, v in self.active_filters.items() if v is not None}
     
+    def update_status_message(self, message):
+        """Update or create status message (replaces previous status)
+        
+        Args:
+            message: Status message to display
+        """
+        self.chat_display.configure(state="normal")
+        
+        # Find and remove previous status message if exists
+        if hasattr(self, '_status_start_index') and self._status_start_index:
+            try:
+                self.chat_display.delete(self._status_start_index, "end")
+            except:
+                pass
+        
+        # Insert new status message
+        self._status_start_index = self.chat_display.index("end-1c")
+        self.chat_display.insert("end", f"\n{message}\n", "system_tag")
+        
+        self.chat_display.configure(state="disabled")
+        self.chat_display.see("end")
+    
+    def clear_status_message(self):
+        """Clear the current status message"""
+        if hasattr(self, '_status_start_index') and self._status_start_index:
+            self.chat_display.configure(state="normal")
+            try:
+                self.chat_display.delete(self._status_start_index, "end")
+            except:
+                pass
+            self.chat_display.configure(state="disabled")
+            self._status_start_index = None
+    
     def _create_chat_display(self):
         """Create scrollable chat display"""
         chat_frame = ctk.CTkFrame(self.main_frame)
@@ -343,56 +428,90 @@ class ChatArea:
     def _create_feedback_area(self):
         """Create feedback buttons area"""
         self.feedback_frame = ctk.CTkFrame(self.main_frame, fg_color=COLORS['dark_bg'], height=50)
-        self.feedback_frame.grid(row=3, column=0, sticky="ew", padx=20, pady=(0, 10))
+        self.feedback_frame.grid(row=3, column=0, sticky="ew", padx=20, pady=(0, 5))
         self.feedback_frame.grid_remove()  # Hidden by default
         
-        # Left side: Label
-        ctk.CTkLabel(
-            self.feedback_frame,
-            text="💬 Was this answer helpful?",
-            font=ctk.CTkFont(size=FONT_SIZES['small'])
-        ).pack(side="left", padx=15, pady=10)
+        # Left side: Quick Actions
+        actions_container = ctk.CTkFrame(self.feedback_frame, fg_color="transparent")
+        actions_container.pack(side="left", padx=15, pady=10)
         
-        # Right side: Buttons
-        btn_container = ctk.CTkFrame(self.feedback_frame, fg_color="transparent")
-        btn_container.pack(side="right", padx=15, pady=10)
+        # Copy button
+        self.copy_btn = ctk.CTkButton(
+            actions_container,
+            text="📋 Copy",
+            command=self._copy_response,
+            width=80,
+            height=30,
+            font=ctk.CTkFont(size=FONT_SIZES['tiny']),
+            fg_color="transparent",
+            border_width=1
+        )
+        self.copy_btn.pack(side="left", padx=3)
+        
+        # Export button
+        self.export_btn = ctk.CTkButton(
+            actions_container,
+            text="📤 Export",
+            command=self._export_response,
+            width=80,
+            height=30,
+            font=ctk.CTkFont(size=FONT_SIZES['tiny']),
+            fg_color="transparent",
+            border_width=1
+        )
+        self.export_btn.pack(side="left", padx=3)
+        
+        # Separator
+        ctk.CTkLabel(
+            actions_container,
+            text="|",
+            font=ctk.CTkFont(size=12),
+            text_color="gray"
+        ).pack(side="left", padx=10)
+        
+        # Feedback label
+        ctk.CTkLabel(
+            actions_container,
+            text="Was this helpful?",
+            font=ctk.CTkFont(size=FONT_SIZES['tiny'])
+        ).pack(side="left", padx=5)
         
         # Thumbs up
         self.thumbs_up_btn = ctk.CTkButton(
-            btn_container,
-            text="👍 Helpful",
+            actions_container,
+            text="👍",
             command=lambda: self._on_feedback("positive"),
-            width=100,
-            height=35,
+            width=40,
+            height=30,
             fg_color=COLORS['success'],
             hover_color=COLORS['success_hover'],
-            font=ctk.CTkFont(size=FONT_SIZES['tiny'])
+            font=ctk.CTkFont(size=14)
         )
-        self.thumbs_up_btn.pack(side="left", padx=5)
+        self.thumbs_up_btn.pack(side="left", padx=3)
         
         # Thumbs down
         self.thumbs_down_btn = ctk.CTkButton(
-            btn_container,
-            text="👎 Not Helpful",
+            actions_container,
+            text="👎",
             command=lambda: self._on_feedback("negative"),
-            width=120,
-            height=35,
+            width=40,
+            height=30,
             fg_color=COLORS['danger'],
             hover_color=COLORS['danger_hover'],
-            font=ctk.CTkFont(size=FONT_SIZES['tiny'])
+            font=ctk.CTkFont(size=14)
         )
-        self.thumbs_down_btn.pack(side="left", padx=5)
+        self.thumbs_down_btn.pack(side="left", padx=3)
         
         # Comment button
         self.comment_btn = ctk.CTkButton(
-            btn_container,
-            text="📝 Comment",
+            actions_container,
+            text="📝",
             command=self._on_comment,
-            width=100,
-            height=35,
+            width=40,
+            height=30,
             fg_color="transparent",
             border_width=1,
-            font=ctk.CTkFont(size=FONT_SIZES['tiny'])
+            font=ctk.CTkFont(size=14)
         )
         self.comment_btn.pack(side="left", padx=5)
     
@@ -470,6 +589,69 @@ class ChatArea:
         self.chat_display.configure(state="disabled")
         self.chat_display.see("end")
     
+    def _copy_response(self):
+        """Copy the last response to clipboard"""
+        if self.last_response:
+            self.parent.clipboard_clear()
+            
+            # Format the copy content
+            copy_text = f"Question: {self.last_query}\n\nAnswer: {self.last_response}"
+            
+            # Add sources if available
+            if self.last_sources:
+                copy_text += "\n\nSources:\n"
+                for i, src in enumerate(self.last_sources[:3], 1):
+                    copy_text += f"  {i}. {src.get('document', 'Unknown')} (Page {src.get('page', 'N/A')})\n"
+            
+            self.parent.clipboard_append(copy_text)
+            
+            # Show confirmation
+            self.chat_display.configure(state="normal")
+            self.chat_display.insert("end", "\n✅ Copied to clipboard!\n", "system_tag")
+            self.chat_display.configure(state="disabled")
+            self.chat_display.see("end")
+    
+    def _export_response(self):
+        """Export the last response to a file"""
+        if not self.last_response:
+            return
+        
+        from tkinter import filedialog
+        from datetime import datetime
+        
+        # Ask for file location
+        filename = filedialog.asksaveasfilename(
+            defaultextension=".txt",
+            filetypes=[("Text files", "*.txt"), ("Markdown files", "*.md"), ("All files", "*.*")],
+            initialfile=f"query_export_{datetime.now().strftime('%Y%m%d_%H%M%S')}.txt"
+        )
+        
+        if filename:
+            try:
+                with open(filename, 'w', encoding='utf-8') as f:
+                    f.write(f"# PyRAG Query Export\n")
+                    f.write(f"Date: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n\n")
+                    f.write(f"## Question\n{self.last_query}\n\n")
+                    f.write(f"## Answer\n{self.last_response}\n\n")
+                    
+                    if self.last_sources:
+                        f.write("## Sources\n")
+                        for i, src in enumerate(self.last_sources[:5], 1):
+                            f.write(f"{i}. {src.get('document', 'Unknown')} (Page {src.get('page', 'N/A')})\n")
+                            if src.get('text'):
+                                f.write(f"   > {src['text'][:200]}...\n\n")
+                
+                # Show confirmation
+                self.chat_display.configure(state="normal")
+                self.chat_display.insert("end", f"\n✅ Exported to {filename}\n", "system_tag")
+                self.chat_display.configure(state="disabled")
+                self.chat_display.see("end")
+                
+            except Exception as e:
+                self.chat_display.configure(state="normal")
+                self.chat_display.insert("end", f"\n❌ Export failed: {str(e)}\n", "system_tag")
+                self.chat_display.configure(state="disabled")
+    
     def _on_feedback(self, feedback_type):
         """Handle feedback button click"""
         if not self.feedback_callback or not self.last_query or not self.last_response:
@@ -490,9 +672,6 @@ class ChatArea:
         self.chat_display.insert("end", f"\n{emoji} Thank you for your feedback!\n", "system_tag")
         self.chat_display.configure(state="disabled")
         self.chat_display.see("end")
-        
-        # Hide feedback buttons
-        self.feedback_frame.grid_remove()
     
     def _on_comment(self):
         """Handle comment button click - open dialog for comment"""
@@ -589,7 +768,61 @@ class ChatArea:
         self.chat_display.configure(state="disabled")
         self.chat_history = []
         self.last_query_analysis = None
+        self._status_start_index = None
+        # Remove follow-up buttons if they exist
+        if hasattr(self, 'followup_frame') and self.followup_frame:
+            self.followup_frame.destroy()
+            self.followup_frame = None
         self.display_welcome_message()
+    
+    def display_follow_ups(self, questions, callback):
+        """Display follow-up question suggestions as clickable buttons
+        
+        Args:
+            questions: List of follow-up question strings
+            callback: Function to call when a question is clicked
+        """
+        if not questions:
+            return
+        
+        # Remove existing follow-up frame if any
+        if hasattr(self, 'followup_frame') and self.followup_frame:
+            self.followup_frame.destroy()
+        
+        # Create follow-up frame
+        self.followup_frame = ctk.CTkFrame(self.main_frame, fg_color=COLORS['dark_bg'])
+        self.followup_frame.grid(row=5, column=0, sticky="ew", padx=20, pady=(5, 10))
+        
+        # Label
+        ctk.CTkLabel(
+            self.followup_frame,
+            text="💡 Related questions:",
+            font=ctk.CTkFont(size=FONT_SIZES['tiny'], weight="bold")
+        ).pack(side="left", padx=(15, 10), pady=8)
+        
+        # Create buttons for each question
+        for question in questions:
+            btn = ctk.CTkButton(
+                self.followup_frame,
+                text=question[:50] + ("..." if len(question) > 50 else ""),
+                command=lambda q=question: self._on_followup_click(q, callback),
+                height=30,
+                font=ctk.CTkFont(size=FONT_SIZES['tiny']),
+                fg_color="transparent",
+                border_width=1,
+                text_color=COLORS.get('primary', '#3498db'),
+                hover_color=COLORS.get('hover', '#2c3e50')
+            )
+            btn.pack(side="left", padx=5, pady=8)
+    
+    def _on_followup_click(self, question, callback):
+        """Handle follow-up button click"""
+        # Remove follow-up frame
+        if hasattr(self, 'followup_frame') and self.followup_frame:
+            self.followup_frame.destroy()
+            self.followup_frame = None
+        # Call the callback with the question
+        callback(question)
     
     def get_input(self):
         """Get current input text"""

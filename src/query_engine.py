@@ -5,8 +5,6 @@ Intelligent Q&A with hybrid search (Semantic + BM25) and reranking.
 """
 
 from typing import List, Optional, Dict
-import chromadb
-from chromadb.config import Settings as ChromaSettings
 from concurrent.futures import ThreadPoolExecutor, as_completed
 import time
 
@@ -21,9 +19,9 @@ from llama_index.core.query_engine import RetrieverQueryEngine
 from llama_index.core.postprocessor import SimilarityPostprocessor
 from llama_index.core.indices.postprocessor import MetadataReplacementPostProcessor
 from llama_index.embeddings.openai import OpenAIEmbedding
-from llama_index.llms.openai import OpenAI
 from llama_index.llms.deepseek import DeepSeek
-from llama_index.vector_stores.chroma import ChromaVectorStore
+from llama_index.vector_stores.qdrant import QdrantVectorStore
+import qdrant_client
 
 from loguru import logger
 from src.utils import get_settings, setup_logger, create_system_prompt
@@ -38,6 +36,8 @@ from src.response_cache import get_response_cache
 from src.query_history import get_query_history
 from src.export_manager import get_export_manager
 from src.graph_visualizer import get_graph_visualizer
+from src.hybrid_search import get_hybrid_search_engine, HybridSearchEngine
+from src.graph_rag import get_graph_rag, GraphRAG
 from src.error_handler import (
     get_error_handler, 
     ErrorCategory, 
@@ -114,6 +114,15 @@ class QueryEngine:
         if self.graph_retriever and self.graph_retriever.enabled:
             self.health_check.register_component('graph_retriever',
                 lambda: self.graph_retriever.enabled)
+
+    def close(self):
+        """Close connections and release resources"""
+        try:
+            if hasattr(self, 'client') and self.client:
+                self.client.close()
+                logger.info("🔒 Qdrant client closed")
+        except Exception as e:
+            logger.warning(f"Error closing Qdrant client: {e}")
     
     def _setup_llama_index(self):
         """Configure LlamaIndex global settings"""
@@ -123,25 +132,14 @@ class QueryEngine:
             # Get system prompt
             system_prompt = create_system_prompt()
             
-            # Determine which LLM to use based on model name
-            if "deepseek" in self.settings.llm_model.lower():
-                # DeepSeek native integration
-                logger.info("📡 Using DeepSeek API (90% cheaper!)...")
-                Settings.llm = DeepSeek(
-                    model=self.settings.llm_model,
-                    temperature=self.settings.llm_temperature,
-                    api_key=self.settings.deepseek_api_key,
-                    system_prompt=system_prompt
-                )
-            else:
-                # Default to OpenAI
-                logger.info("📡 Using OpenAI API...")
-                Settings.llm = OpenAI(
-                    model=self.settings.llm_model,
-                    temperature=self.settings.llm_temperature,
-                    api_key=self.settings.openai_api_key,
-                    system_prompt=system_prompt
-                )
+            # Use DeepSeek API
+            logger.info("📡 Using DeepSeek API...")
+            Settings.llm = DeepSeek(
+                model=self.settings.llm_model,
+                temperature=self.settings.llm_temperature,
+                api_key=self.settings.deepseek_api_key,
+                system_prompt=system_prompt
+            )
             
             # Embedding settings (use same model as ingestion for consistency)
             Settings.embed_model = OpenAIEmbedding(
@@ -156,25 +154,26 @@ class QueryEngine:
             raise
     
     def _load_index(self):
-        """Load existing vector index"""
+        """Load existing vector index from Qdrant"""
         logger.info("📂 Loading vector index...")
         
         try:
-            # ChromaDB connection
-            chroma_client = chromadb.PersistentClient(
-                path=self.settings.chroma_db_path,
-                settings=ChromaSettings(anonymized_telemetry=False)
-            )
-            
             collection_name = self.settings.get_collection_name()
-            self.chroma_collection = chroma_client.get_collection(
-                name=collection_name
+            
+            # Qdrant Setup
+            self.client = qdrant_client.QdrantClient(
+                path=self.settings.qdrant_path
             )
             
-            # Vector store
-            vector_store = ChromaVectorStore(
-                chroma_collection=self.chroma_collection
+            vector_store = QdrantVectorStore(
+                client=self.client,
+                collection_name=collection_name
             )
+            
+            try:
+                node_count = self.client.count(collection_name=collection_name).count
+            except:
+                node_count = 0
             
             # Storage context
             storage_context = StorageContext.from_defaults(
@@ -187,35 +186,69 @@ class QueryEngine:
                 storage_context=storage_context
             )
             
-            node_count = self.chroma_collection.count()
             logger.success(f"✅ Index loaded ({node_count} nodes)")
             
         except Exception as e:
             logger.error(f"❌ Failed to load index: {e}")
             logger.warning("💡 Run ingestion first: python main.py ingest")
-            raise
+            # Allow continuing even if index load fails (e.g. first run)
+            self.index = None
     
     def _index_bm25(self):
         """Index all documents for BM25 keyword search"""
         logger.info("🔑 Indexing documents for BM25 keyword search...")
         
         try:
-            # Get all documents from ChromaDB
-            all_docs = self.chroma_collection.get()
+            bm25_docs = []
             
-            if not all_docs or not all_docs.get('documents'):
+            # Qdrant BM25 indexing
+            if hasattr(self, 'client'):
+                try:
+                    # Scroll through all points
+                    collection_name = self.settings.get_collection_name()
+                    offset = None
+                    while True:
+                        points, next_offset = self.client.scroll(
+                            collection_name=collection_name,
+                            limit=100,
+                            offset=offset,
+                            with_payload=True,
+                            with_vectors=False
+                        )
+                        
+                        for point in points:
+                            payload = point.payload or {}
+                            # LlamaIndex stores text in 'text' or '_node_content'
+                            text = payload.get('text')
+                            
+                            if not text:
+                                node_content = payload.get('_node_content')
+                                if isinstance(node_content, str):
+                                    import json
+                                    try:
+                                        node_content = json.loads(node_content)
+                                    except:
+                                        node_content = {}
+                                
+                                if isinstance(node_content, dict):
+                                    text = node_content.get('text', '')
+                            
+                            if text:
+                                bm25_docs.append({
+                                    'text': text,
+                                    'metadata': payload,
+                                    'id': str(point.id)
+                                })
+                        
+                        offset = next_offset
+                        if offset is None:
+                            break
+                except Exception as e:
+                    logger.warning(f"⚠️ Could not fetch documents from Qdrant for BM25: {e}")
+            
+            if not bm25_docs:
                 logger.warning("⚠️ No documents found for BM25 indexing")
                 return
-            
-            # Prepare documents for BM25
-            bm25_docs = []
-            for i, doc_text in enumerate(all_docs['documents']):
-                metadata = all_docs['metadatas'][i] if all_docs.get('metadatas') else {}
-                bm25_docs.append({
-                    'text': doc_text,
-                    'metadata': metadata,
-                    'id': all_docs['ids'][i] if all_docs.get('ids') else str(i)
-                })
             
             # Index documents
             self.bm25_searcher.index_documents(bm25_docs)
@@ -224,6 +257,28 @@ class QueryEngine:
         except Exception as e:
             logger.error(f"❌ Failed to index BM25: {e}")
             logger.warning("⚠️ BM25 search will not be available")
+    
+    def _setup_hybrid_search(self):
+        """Initialize advanced hybrid search engine with RRF fusion"""
+        try:
+            # Create base retriever for hybrid engine
+            base_retriever = VectorIndexRetriever(
+                index=self.index,
+                similarity_top_k=20
+            )
+            
+            # Initialize hybrid search engine
+            self.hybrid_engine = get_hybrid_search_engine(
+                semantic_retriever=base_retriever,
+                bm25_searcher=self.bm25_searcher,
+                qdrant_client=self.client,
+                collection_name=self.settings.get_collection_name()
+            )
+            
+            logger.success("✅ Hybrid Search Engine ready (RRF fusion enabled)")
+        except Exception as e:
+            logger.warning(f"⚠️ Hybrid search engine not available: {e}")
+            self.hybrid_engine = None
     
     def _setup_query_engine(self):
         """Configure query engine (Retriever + Synthesizer) with hierarchical context"""
@@ -234,6 +289,9 @@ class QueryEngine:
             index=self.index,
             similarity_top_k=15,  # Fetch more candidates for reranking
         )
+        
+        # Initialize hybrid search engine for advanced retrieval
+        self._setup_hybrid_search()
         
         # Postprocessors:
         # 1. Feedback-based re-ranking (active learning)
@@ -647,6 +705,156 @@ class QueryEngine:
                 "error": str(e)
             }
     
+    def advanced_query(
+        self,
+        question: str,
+        return_sources: bool = True,
+        use_rrf: bool = True,
+        filters: Optional[Dict] = None
+    ) -> Dict:
+        """
+        Advanced query using RRF-based hybrid search
+        
+        This method uses Reciprocal Rank Fusion to combine results from:
+        - Semantic search (dense vectors)
+        - BM25 search (keyword matching)
+        - Metadata search (standards, sections)
+        - Entity search (specifications, values)
+        
+        Args:
+            question: User's question
+            return_sources: Return source documents
+            use_rrf: Use RRF fusion (True) or fallback to standard blend (False)
+            filters: Optional filters {'document', 'category', 'project'}
+            
+        Returns:
+            Response dictionary with answer and sources
+        """
+        logger.info(f"🔍 Advanced Query (RRF): '{question}'")
+        
+        # Analyze query
+        query_analysis = self.query_analyzer.analyze(question)
+        logger.info(f"   🧠 Intent: {query_analysis['intent'].value}")
+        
+        # Expand query
+        if self.use_expansion and self.expander:
+            expanded_query = self.expander.expand(question)
+        else:
+            expanded_query = question
+        
+        if expanded_query != question:
+            logger.info(f"   ✨ Expanded query")
+        
+        start_time = time.time()
+        
+        try:
+            # Use RRF-based hybrid search if available
+            if use_rrf and hasattr(self, 'hybrid_engine') and self.hybrid_engine:
+                # Perform adaptive hybrid search
+                fused_results = self.hybrid_engine.adaptive_search(
+                    query=expanded_query,
+                    query_analysis=query_analysis,
+                    top_k=15
+                )
+                
+                if fused_results:
+                    logger.info(f"   ✅ RRF fusion: {len(fused_results)} results")
+                    logger.info(f"   📊 Top result coverage: {fused_results[0].retriever_coverage} retrievers")
+                    
+                    # Convert to NodeWithScore for LLM
+                    from llama_index.core.schema import NodeWithScore, TextNode
+                    
+                    blended_nodes = []
+                    for result in fused_results:
+                        # Get original text (without context prefix for display)
+                        original_text = result.metadata.get('original_text', result.text)
+                        
+                        node = TextNode(
+                            text=result.text,
+                            metadata=result.metadata,
+                            id_=result.id
+                        )
+                        node_with_score = NodeWithScore(
+                            node=node,
+                            score=result.rrf_score
+                        )
+                        blended_nodes.append(node_with_score)
+                else:
+                    # Fallback to standard search
+                    logger.warning("   ⚠️ RRF returned no results, falling back to standard search")
+                    return self.query(question, return_sources, filters=filters)
+            else:
+                # Fallback to standard query
+                return self.query(question, return_sources, filters=filters)
+            
+            # Generate response using LLM
+            response_synthesizer = get_response_synthesizer(
+                response_mode="compact",
+                structured_answer_filtering=False
+            )
+            
+            from llama_index.core.schema import QueryBundle
+            query_bundle = QueryBundle(query_str=expanded_query)
+            
+            response = response_synthesizer.synthesize(
+                query=query_bundle,
+                nodes=blended_nodes[:10]
+            )
+            
+            query_time = time.time() - start_time
+            
+            answer_text = str(response).strip()
+            
+            if not answer_text:
+                answer_text = "I found relevant information but couldn't generate a response. Please try rephrasing."
+            
+            # Build result
+            result = {
+                "response": answer_text,
+                "sources": [],
+                "metadata": {
+                    "question": question,
+                    "model": self.settings.llm_model,
+                    "query_intent": str(query_analysis['intent'].value),
+                    "search_type": "rrf_hybrid",
+                    "query_time": query_time,
+                    "retrieval_info": {
+                        "total_results": len(fused_results),
+                        "top_rrf_score": fused_results[0].rrf_score if fused_results else 0,
+                        "retriever_coverage": fused_results[0].retriever_coverage if fused_results else 0
+                    }
+                }
+            }
+            
+            # Add sources
+            if return_sources and blended_nodes:
+                for idx, node in enumerate(blended_nodes[:10], 1):
+                    metadata = node.node.metadata
+                    
+                    # Get display text (original without context prefix)
+                    display_text = metadata.get('original_text', node.node.text)[:300]
+                    
+                    result["sources"].append({
+                        "rank": idx,
+                        "document": metadata.get('document_name', metadata.get('file_name', 'Unknown')),
+                        "page": metadata.get('page_label', 'N/A'),
+                        "section": metadata.get('section_number', ''),
+                        "section_title": metadata.get('section_title', ''),
+                        "text": display_text + "...",
+                        "score": node.score,
+                        "has_table": metadata.get('has_table', False),
+                        "referenced_standards": metadata.get('referenced_standards', []),
+                        "metadata": metadata
+                    })
+            
+            logger.success(f"✅ Advanced query completed in {query_time:.2f}s")
+            return result
+            
+        except Exception as e:
+            logger.error(f"❌ Advanced query failed: {e}")
+            # Fallback to standard query
+            return self.query(question, return_sources, filters=filters)
+    
     def switch_model(self, model_name: str):
         """
         Dynamically switch LLM model
@@ -834,30 +1042,39 @@ class QueryEngine:
             Dictionary with stats (total_nodes, db_path, collection_name)
         """
         try:
-            # Get ChromaDB collection
-            chroma_client = chromadb.PersistentClient(
-                path=self.settings.chroma_db_path,
-                settings=ChromaSettings(anonymized_telemetry=False)
-            )
-            
             collection_name = self.settings.get_collection_name()
+            node_count = 0
+            db_path = ""
             
-            try:
-                chroma_collection = chroma_client.get_collection(name=collection_name)
-                node_count = chroma_collection.count()
-            except:
-                node_count = 0
+            # Check if we have a Qdrant client (preferred method)
+            if hasattr(self, 'client') and self.client is not None:
+                try:
+                    node_count = self.client.count(collection_name=collection_name).count
+                    db_path = self.settings.qdrant_path
+                except Exception as e:
+                    logger.debug(f"Could not get count from existing client: {e}")
+                    node_count = 0
+            else:
+                # Fallback: try to create a new Qdrant client
+                try:
+                    client = qdrant_client.QdrantClient(path=self.settings.qdrant_path)
+                    node_count = client.count(collection_name=collection_name).count
+                    db_path = self.settings.qdrant_path
+                    client.close()
+                except Exception as e:
+                    logger.debug(f"Could not create Qdrant client for stats: {e}")
+                    node_count = 0
             
             return {
                 'total_nodes': node_count,
-                'db_path': self.settings.chroma_db_path,
+                'db_path': db_path,
                 'collection_name': collection_name
             }
         except Exception as e:
             logger.error(f"Error getting stats: {e}")
             return {
                 'total_nodes': 0,
-                'db_path': self.settings.chroma_db_path,
+                'db_path': self.settings.qdrant_path,
                 'collection_name': self.settings.get_collection_name()
             }
     
@@ -1034,6 +1251,258 @@ class QueryEngine:
         """Check if system is running in degraded mode"""
         health = self.health_check.get_system_health()
         return health['overall_status'] in [HealthStatus.DEGRADED, HealthStatus.UNHEALTHY]
+    
+    # =====================
+    # GraphRAG Integration
+    # =====================
+    
+    def _setup_graph_rag(self):
+        """Initialize GraphRAG for graph-enhanced retrieval"""
+        try:
+            graph_rag = get_graph_rag(
+                neo4j_uri=self.settings.neo4j_uri,
+                neo4j_user=self.settings.neo4j_user,
+                neo4j_password=self.settings.neo4j_password,
+                qdrant_client=self.client,
+                collection_name=self.settings.get_collection_name()
+            )
+            
+            if graph_rag and graph_rag.is_available():
+                self.graph_rag = graph_rag
+                logger.success("✅ GraphRAG ready (vector + graph fusion)")
+            else:
+                self.graph_rag = None
+                logger.warning("⚠️ GraphRAG not available (Neo4j connection required)")
+                
+        except Exception as e:
+            logger.warning(f"⚠️ GraphRAG initialization failed: {e}")
+            self.graph_rag = None
+    
+    def graph_query(
+        self,
+        question: str,
+        max_hops: int = 2,
+        return_reasoning: bool = True,
+        filters: Optional[Dict] = None
+    ) -> Dict:
+        """
+        GraphRAG-enhanced query combining vector search with knowledge graph
+        
+        This method uses the knowledge graph for:
+        - Multi-hop reasoning across related standards
+        - Entity-based retrieval (specifications, requirements)
+        - Cross-reference discovery between documents
+        - Reasoning chain generation
+        
+        Args:
+            question: User's question
+            max_hops: Maximum graph traversal depth
+            return_reasoning: Include reasoning chain in response
+            filters: Optional document/category filters
+            
+        Returns:
+            Response dict with answer, sources, and reasoning chain
+        """
+        logger.info(f"🔍 GraphRAG Query: '{question}'")
+        
+        # Initialize GraphRAG if not done
+        if not hasattr(self, 'graph_rag') or self.graph_rag is None:
+            self._setup_graph_rag()
+        
+        # Check availability
+        if not hasattr(self, 'graph_rag') or self.graph_rag is None:
+            logger.warning("⚠️ GraphRAG not available, falling back to advanced_query")
+            return self.advanced_query(question, return_sources=True, filters=filters)
+        
+        start_time = time.time()
+        
+        try:
+            # Analyze query
+            query_analysis = self.query_analyzer.analyze(question)
+            logger.info(f"   🧠 Intent: {query_analysis['intent'].value}")
+            
+            # Get GraphRAG response
+            graph_result = self.graph_rag.get_answer_with_graph(
+                query=question,
+                max_hops=max_hops
+            )
+            
+            query_time = time.time() - start_time
+            
+            # Build result
+            result = {
+                "response": graph_result.answer,
+                "sources": [],
+                "metadata": {
+                    "question": question,
+                    "model": self.settings.llm_model,
+                    "query_intent": str(query_analysis['intent'].value),
+                    "search_type": "graph_rag",
+                    "query_time": query_time,
+                    "graph_info": {
+                        "entities_found": len(graph_result.entities),
+                        "paths_traversed": len(graph_result.paths),
+                        "vector_results": len(graph_result.vector_results),
+                        "graph_results": len(graph_result.graph_results)
+                    }
+                }
+            }
+            
+            # Add reasoning chain
+            if return_reasoning and graph_result.reasoning_chain:
+                result["reasoning_chain"] = graph_result.reasoning_chain
+                logger.info(f"   🔗 Reasoning chain: {len(graph_result.reasoning_chain)} steps")
+            
+            # Build sources from combined results
+            combined_nodes = graph_result.combined_context[:10]
+            for idx, node in enumerate(combined_nodes, 1):
+                metadata = node.metadata if hasattr(node, 'metadata') else {}
+                text = node.text if hasattr(node, 'text') else str(node)
+                
+                result["sources"].append({
+                    "rank": idx,
+                    "document": metadata.get('document_name', metadata.get('file_name', 'Unknown')),
+                    "page": metadata.get('page_label', 'N/A'),
+                    "section": metadata.get('section_number', ''),
+                    "section_title": metadata.get('section_title', ''),
+                    "text": text[:300] + "..." if len(text) > 300 else text,
+                    "source_type": metadata.get('source_type', 'vector'),
+                    "metadata": metadata
+                })
+            
+            # Add discovered entities
+            if graph_result.entities:
+                result["discovered_entities"] = [
+                    {
+                        "name": e.name,
+                        "type": e.type,
+                        "properties": e.properties
+                    }
+                    for e in graph_result.entities[:10]
+                ]
+            
+            # Add relationship paths
+            if graph_result.paths:
+                result["graph_paths"] = [
+                    {
+                        "from": p.source,
+                        "relationship": p.relationship,
+                        "to": p.target,
+                        "strength": p.strength
+                    }
+                    for p in graph_result.paths[:10]
+                ]
+            
+            logger.success(f"✅ GraphRAG query completed in {query_time:.2f}s")
+            logger.info(f"   📊 Found {len(graph_result.entities)} entities, {len(graph_result.paths)} relationships")
+            
+            return result
+            
+        except Exception as e:
+            logger.error(f"❌ GraphRAG query failed: {e}")
+            logger.info("   ↩️ Falling back to advanced_query")
+            return self.advanced_query(question, return_sources=True, filters=filters)
+    
+    def get_entity_context(
+        self,
+        entity_name: str,
+        entity_type: str = "STANDARD",
+        max_hops: int = 2
+    ) -> Dict:
+        """
+        Get all context related to a specific entity from the knowledge graph
+        
+        Useful for exploring relationships of a specific standard, specification,
+        or requirement without asking a question.
+        
+        Args:
+            entity_name: Name of the entity (e.g., "IS10101", "2.5mm² cable")
+            entity_type: Type of entity (STANDARD, SPECIFICATION, REQUIREMENT, etc.)
+            max_hops: Maximum relationship depth to explore
+            
+        Returns:
+            Dict with entity info, related entities, and relevant chunks
+        """
+        logger.info(f"🔍 Getting context for entity: {entity_name} ({entity_type})")
+        
+        if not hasattr(self, 'graph_rag') or self.graph_rag is None:
+            self._setup_graph_rag()
+        
+        if not hasattr(self, 'graph_rag') or self.graph_rag is None:
+            return {
+                "entity": entity_name,
+                "error": "GraphRAG not available",
+                "related_entities": [],
+                "relevant_chunks": []
+            }
+        
+        try:
+            # Get graph context
+            context = self.graph_rag.get_entity_context(
+                entity_name=entity_name,
+                entity_type=entity_type,
+                max_hops=max_hops
+            )
+            
+            return context
+            
+        except Exception as e:
+            logger.error(f"❌ Failed to get entity context: {e}")
+            return {
+                "entity": entity_name,
+                "error": str(e),
+                "related_entities": [],
+                "relevant_chunks": []
+            }
+    
+    def discover_cross_references(
+        self,
+        document_name: str,
+        relationship_types: Optional[List[str]] = None
+    ) -> Dict:
+        """
+        Discover all cross-references from a document using the knowledge graph
+        
+        Args:
+            document_name: Document to analyze
+            relationship_types: Filter specific relationship types
+                              (REFERENCES, SUPERSEDES, CONFLICTS, REQUIRES)
+            
+        Returns:
+            Dict with incoming and outgoing references
+        """
+        logger.info(f"🔍 Discovering cross-references for: {document_name}")
+        
+        if not hasattr(self, 'graph_rag') or self.graph_rag is None:
+            self._setup_graph_rag()
+        
+        if not hasattr(self, 'graph_rag') or self.graph_rag is None:
+            return {
+                "document": document_name,
+                "error": "GraphRAG not available",
+                "references": {"outgoing": [], "incoming": []}
+            }
+        
+        try:
+            references = self.graph_rag.discover_cross_references(
+                document_name=document_name,
+                relationship_types=relationship_types
+            )
+            
+            return {
+                "document": document_name,
+                "references": references,
+                "total_outgoing": len(references.get("outgoing", [])),
+                "total_incoming": len(references.get("incoming", []))
+            }
+            
+        except Exception as e:
+            logger.error(f"❌ Failed to discover cross-references: {e}")
+            return {
+                "document": document_name,
+                "error": str(e),
+                "references": {"outgoing": [], "incoming": []}
+            }
 
 
 def main():

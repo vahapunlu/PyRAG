@@ -1,46 +1,62 @@
 """
-Update Categories in ChromaDB
+Update Categories in Vector Database (Qdrant)
 
 Updates the category metadata for all documents from Uncategorized to Standard
 """
 
-import chromadb
-from chromadb.config import Settings as ChromaSettings
+import sys
+import os
 from loguru import logger
+import qdrant_client
+from qdrant_client.http import models
+
+# Add src to path
+sys.path.append(os.path.join(os.getcwd(), 'src'))
+from utils import get_settings
 
 def update_categories():
-    """Update categories in ChromaDB"""
+    """Update categories in Qdrant Vector Store"""
+    settings = get_settings()
+    
     try:
-        logger.info("🔄 Updating categories in ChromaDB...")
+        logger.info(f"🔄 Updating categories in Qdrant...")
         
-        # Connect to ChromaDB
-        client = chromadb.PersistentClient(
-            path='./chroma_db',
-            settings=ChromaSettings(anonymized_telemetry=False)
-        )
+        # Qdrant Update
+        client = qdrant_client.QdrantClient(path=settings.qdrant_path)
+        collection_name = settings.get_collection_name()
         
-        # Get collection
-        collection = client.get_collection('engineering_standards')
-        
-        # Get all items
-        results = collection.get(include=['metadatas'])
-        
-        logger.info(f"📊 Found {len(results['ids'])} items to update")
-        
-        # Update each item
+        # Scroll all points
+        offset = None
         updated_count = 0
-        for item_id, metadata in zip(results['ids'], results['metadatas']):
-            if metadata.get('categories') == 'Uncategorized':
-                # Update to Standard
-                metadata['categories'] = 'Standard'
-                
-                # Update in ChromaDB
-                collection.update(
-                    ids=[item_id],
-                    metadatas=[metadata]
-                )
-                updated_count += 1
         
+        while True:
+            points, next_offset = client.scroll(
+                collection_name=collection_name,
+                limit=100,
+                offset=offset,
+                with_payload=True,
+                with_vectors=False
+            )
+            
+            for point in points:
+                metadata = point.payload or {}
+                if metadata.get('categories') == 'Uncategorized':
+                    # Update metadata
+                    metadata['categories'] = 'Standard'
+                    
+                    # Update in Qdrant
+                    client.set_payload(
+                        collection_name=collection_name,
+                        payload=metadata,
+                        points=[point.id]
+                    )
+                    updated_count += 1
+            
+            offset = next_offset
+            if offset is None:
+                break
+        
+        client.close()
         logger.success(f"✅ Updated {updated_count} items from Uncategorized to Standard")
         
     except Exception as e:

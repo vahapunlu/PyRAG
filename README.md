@@ -9,9 +9,9 @@
 - ✅ **Modern Windows GUI**: Professional desktop application with CustomTkinter
 - ✅ **Auto-Summary Engine**: Extract focused information from large specs (150+ pages)
 - ✅ **Cross-Reference Search**: Find matching requirements across multiple documents
-- ✅ **Database Manager**: Visual management of ChromaDB collections and documents
+- ✅ **Database Manager**: Visual management of Qdrant collections and documents
 - ✅ **Table Awareness**: Preserves PDF tables in Markdown format for accurate reading
-- ✅ **Local Database**: All data stays on your computer with ChromaDB
+- ✅ **Local Database**: All data stays on your computer with Qdrant
 - ✅ **Hybrid Search**: Semantic + Keyword search for best results
 - ✅ **GPT-4o/DeepSeek Support**: Interprets complex technical tables (90% cheaper with DeepSeek)
 - ✅ **REST API**: Ready-to-use FastAPI service for React/Flutter
@@ -94,7 +94,7 @@ python main.py
 - 💬 Natural chat-style Q&A
 - 📄 **Auto-Summary**: Extract topic-focused information from large specs
 - 🔗 **Cross-Reference**: Search across multiple documents simultaneously
-- 🗄️ **Database Manager**: Visual ChromaDB management with metadata editing
+- 🗄️ **Database Manager**: Visual Qdrant management with metadata editing
 - 📁 Visual PDF management
 - 📊 Real-time statistics
 - ⚡ One-click indexing
@@ -116,7 +116,7 @@ This process:
 - Detects and converts tables to Markdown
 - Splits text semantically
 - Vectorizes with OpenAI
-- Saves to ChromaDB
+- Saves to Qdrant
 
 ⏱️ **Duration**: ~5-10 minutes for 100-page document
 
@@ -214,7 +214,7 @@ Output:
 📊 Database Information:
 Collection: engineering_standards
 Total Nodes: 452
-Database Path: ./chroma_db
+Database Path: ./qdrant_db
 ```
 
 ### Test Individual Modules
@@ -241,7 +241,7 @@ PyRAG/
 │   ├── IS10101.pdf
 │   └── ...
 │
-├── chroma_db/              # Vector database (auto-created)
+├── qdrant_db/              # Vector database (auto-created)
 │
 ├── src/                    # Source code
 │   ├── utils.py           # Utility functions
@@ -275,7 +275,7 @@ LLM_MODEL=gpt-4o
 LLM_TEMPERATURE=0.1
 
 # Database
-CHROMA_DB_PATH=./chroma_db
+QDRANT_PATH=./qdrant_db
 COLLECTION_NAME=engineering_standards
 
 # API Server
@@ -363,7 +363,7 @@ python main.py ingest --force
 ## 🔒 Security and Privacy
 
 - ✅ **All PDFs stay local** (nothing uploaded)
-- ✅ **Vector database is local** (ChromaDB on your computer)
+- ✅ **Vector database is local** (Qdrant on your computer)
 - ⚠️ **OpenAI receives**: Only processed text chunks (at query time)
 - ⚠️ **Entire document is NOT uploaded**: Only relevant 3-5 paragraphs are sent
 

@@ -1,45 +1,41 @@
 """
 Complete Database Cleanup Script
 
-Clears both ChromaDB and Neo4j Aura databases completely.
+Clears Qdrant and Neo4j Aura databases completely.
 """
 
-import chromadb
-from chromadb.config import Settings as ChromaSettings
+import shutil
 from pathlib import Path
 from loguru import logger
 import os
 from src.utils import get_settings
 from src.graph_manager import GraphManager
 
-def clean_chromadb():
-    """Clear ChromaDB completely"""
+def clean_qdrant():
+    """Clear Qdrant completely by removing local storage folder"""
     try:
         settings = get_settings()
-        logger.info("🗑️  Cleaning ChromaDB...")
+        logger.info("🗑️  Cleaning Qdrant...")
         
-        # Connect to ChromaDB
-        chroma_client = chromadb.PersistentClient(
-            path=settings.chroma_db_path,
-            settings=ChromaSettings(anonymized_telemetry=False)
-        )
+        qdrant_path = Path(settings.qdrant_path)
         
-        # Get all collections
-        collections = chroma_client.list_collections()
-        
-        if not collections:
-            logger.info("   ℹ️  ChromaDB already empty")
+        if not qdrant_path.exists():
+            logger.info("   ℹ️  Qdrant folder doesn't exist")
             return
         
-        # Delete each collection
-        for collection in collections:
-            logger.info(f"   🗑️  Deleting collection: {collection.name}")
-            chroma_client.delete_collection(collection.name)
+        # Count collections before deletion
+        collection_path = qdrant_path / "collection"
+        collection_count = 0
+        if collection_path.exists():
+            collection_count = len(list(collection_path.iterdir()))
         
-        logger.success(f"✅ ChromaDB cleaned! Deleted {len(collections)} collection(s)")
+        # Remove entire Qdrant folder
+        shutil.rmtree(qdrant_path)
+        
+        logger.success(f"✅ Qdrant cleaned! Removed folder with {collection_count} collection(s)")
         
     except Exception as e:
-        logger.error(f"❌ ChromaDB cleanup error: {e}")
+        logger.error(f"❌ Qdrant cleanup error: {e}")
         raise
 
 def clean_neo4j():
@@ -137,8 +133,8 @@ def main():
     print("\n" + "=" * 60)
     
     try:
-        # Clean ChromaDB
-        clean_chromadb()
+        # Clean Qdrant
+        clean_qdrant()
         print()
         
         # Clean Neo4j
@@ -153,7 +149,7 @@ def main():
         logger.success("🎉 ALL DATABASES CLEANED SUCCESSFULLY!")
         print("=" * 60)
         print("\n✅ You can now re-index your documents fresh.")
-        print("   Both ChromaDB and Neo4j will be populated together.\n")
+        print("   Qdrant and Neo4j will be populated together.\n")
         
     except Exception as e:
         print("\n" + "=" * 60)

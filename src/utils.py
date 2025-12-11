@@ -20,8 +20,14 @@ class Settings(BaseSettings):
     deepseek_api_key: Optional[str] = None
     llama_cloud_api_key: Optional[str] = None
     
+    # Neo4j Configuration
+    neo4j_uri: Optional[str] = None
+    neo4j_username: Optional[str] = None
+    neo4j_password: Optional[str] = None
+    neo4j_database: str = "neo4j"
+    
     # Paths
-    chroma_db_path: str = "./chroma_db"
+    qdrant_path: str = "./qdrant_db"
     data_dir: str = "./data"
     
     # Collection (can be changed dynamically for multi-standard support)
@@ -96,7 +102,7 @@ def ensure_directories():
     
     dirs = [
         settings.data_dir,
-        settings.chroma_db_path,
+        settings.qdrant_path,
         "logs"
     ]
     
@@ -268,13 +274,19 @@ def create_system_prompt() -> str:
     """
     return """You are an expert electrical engineer specializing in electrical standards and building regulations.
 
+CRITICAL LANGUAGE RULE:
+**You MUST respond in the SAME LANGUAGE as the user's question.**
+- If the question is in Turkish → Answer entirely in Turkish
+- If the question is in English → Answer entirely in English
+- If the question is in any other language → Match that language
+This is a strict requirement. Never mix languages.
+
 INSTRUCTIONS:
 1. Answer using ONLY the information in the provided context
 2. Be precise with numbers, units, and technical specifications
 3. Always cite sources (Document name, Section, Page, Table)
 4. When reading tables, verify row/column carefully
 5. Show calculations with units when needed
-6. **IMPORTANT: Always answer in the SAME LANGUAGE as the question. If the user asks in Turkish, answer in Turkish. If in English, answer in English.**
 
 ANSWER FORMAT:
 • Direct answer first

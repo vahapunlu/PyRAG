@@ -222,21 +222,54 @@ class AutoSummaryEngine:
         )
     
     def _get_all_chunks(self, document_name: str) -> List:
-        """Get all chunks from a document"""
+        """Get all chunks from a document via Qdrant"""
         try:
-            collection = self.query_engine.chroma_collection
-            result = collection.get(
-                where={"file_name": document_name},
-                include=['documents', 'metadatas']
-            )
+            if not hasattr(self.query_engine, 'client'):
+                self.logger.error("Qdrant client not available")
+                return []
+                
+            client = self.query_engine.client
+            collection_name = self.query_engine.settings.get_collection_name()
             
             chunks = []
-            if result and result.get('documents'):
+            offset = None
+            
+            while True:
+                points, next_offset = client.scroll(
+                    collection_name=collection_name,
+                    limit=100,
+                    offset=offset,
+                    with_payload=True,
+                    with_vectors=False,
+                    scroll_filter={
+                        "must": [
+                            {"key": "file_name", "match": {"value": document_name}}
+                        ]
+                    }
+                )
+                
                 from llama_index.core.schema import TextNode
-                for i, text in enumerate(result['documents']):
-                    metadata = result['metadatas'][i] if result.get('metadatas') else {}
-                    node = TextNode(text=text, metadata=metadata)
-                    chunks.append(node)
+                for point in points:
+                    payload = point.payload or {}
+                    text = payload.get('text')
+                    
+                    if not text:
+                        node_content = payload.get('_node_content')
+                        if isinstance(node_content, str):
+                            import json
+                            try:
+                                node_content = json.loads(node_content)
+                                text = node_content.get('text', '')
+                            except:
+                                pass
+                    
+                    if text:
+                        node = TextNode(text=text, metadata=payload)
+                        chunks.append(node)
+                
+                offset = next_offset
+                if offset is None:
+                    break
             
             return chunks
         except Exception as e:

@@ -136,12 +136,12 @@ EXTRACTED SECTIONS (25 sections found)
 
 3. **Integration** (`src/gui/main_window.py`, `src/gui/sidebar.py`)
    - Sidebar button: "📄 Auto-Summary"
-   - Automatic document discovery from ChromaDB
+   - Automatic document discovery from Qdrant
    - Error handling and validation
 
 ### Dependencies
 - Uses existing QueryEngine (no new API calls)
-- ChromaDB for document storage and retrieval
+- Qdrant for document storage and retrieval
 - DeepSeek LLM for summary generation
 - CustomTkinter for GUI
 

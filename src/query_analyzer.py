@@ -76,9 +76,38 @@ class QueryAnalyzer:
     # Reference patterns
     REFERENCE_PATTERN = r'(?:IS|IEC|EN|BS|NFPA|NEC)\s*\d+'
     
+    # Turkish character indicators
+    TURKISH_CHARS = set('çğıöşüÇĞİÖŞÜ')
+    TURKISH_WORDS = ['nedir', 'nasıl', 'için', 'olan', 'gibi', 'hangi', 'kaç', 
+                     'değer', 'gerekli', 'gereksinim', 'standart', 'tablo']
+    
     def __init__(self):
         """Initialize query analyzer"""
         logger.info("✅ Query Analyzer initialized")
+    
+    def detect_language(self, query: str) -> str:
+        """
+        Detect the language of the query
+        
+        Args:
+            query: User query string
+            
+        Returns:
+            Language code: 'tr' for Turkish, 'en' for English
+        """
+        # Check for Turkish characters
+        if any(c in self.TURKISH_CHARS for c in query):
+            return 'tr'
+        
+        # Check for Turkish words
+        query_lower = query.lower()
+        turkish_word_count = sum(1 for word in self.TURKISH_WORDS if word in query_lower)
+        
+        if turkish_word_count >= 2:
+            return 'tr'
+        
+        # Default to English
+        return 'en'
     
     def analyze(self, query: str) -> Dict:
         """
@@ -98,10 +127,14 @@ class QueryAnalyzer:
                 'has_reference': bool,
                 'references': List[str],
                 'keywords': List[str],
-                'weights': Dict[str, float]  # Retrieval method weights
+                'weights': Dict[str, float],  # Retrieval method weights
+                'language': str  # Detected language code
             }
         """
         query_lower = query.lower()
+        
+        # Detect language
+        language = self.detect_language(query)
         
         # Detect numbers
         numbers = self._extract_numbers(query)
@@ -133,11 +166,12 @@ class QueryAnalyzer:
             'has_reference': has_reference,
             'references': references,
             'keywords': keywords,
-            'weights': weights
+            'weights': weights,
+            'language': language
         }
         
         logger.info(
-            f"📊 Query Analysis: Intent={intent.value}, "
+            f"📊 Query Analysis: Intent={intent.value}, Language={language}, "
             f"Numbers={len(numbers)}, Units={len(units)}, "
             f"Weights={weights}"
         )

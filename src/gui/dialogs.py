@@ -8,7 +8,7 @@ Individual dialogs are now separated into their own modules for better maintaina
 from .new_document_dialog import NewDocumentDialog
 from .settings_dialog import SettingsDialog
 from .database_manager_dialog import DatabaseManagerDialog
-from .cross_reference_dialog import CrossReferenceDialog
+from .cross_reference_dialog_v2 import CrossReferenceDialogV2 as CrossReferenceDialog
 from .auto_summary_dialog import AutoSummaryDialog
 from .query_history_dialog import QueryHistoryDialog
 from .export_dialog import ExportDialog

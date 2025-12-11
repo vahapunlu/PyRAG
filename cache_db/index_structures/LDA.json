@@ -1,0 +1,173 @@
+{
+  "elements": [
+    {
+      "type": "section",
+      "identifier": "1.0",
+      "title": "GENERAL",
+      "page_number": 6
+    },
+    {
+      "type": "section",
+      "identifier": "1.1",
+      "title": "INTRODUCTION AND GENERAL REQUIREMENTS",
+      "page_number": 6
+    },
+    {
+      "type": "section",
+      "identifier": "2.0",
+      "title": "ARCHITECTURAL REQUIREMENTS",
+      "page_number": 7
+    },
+    {
+      "type": "section",
+      "identifier": "2.1",
+      "title": "EXTERNAL ELEMENTS",
+      "page_number": 7
+    },
+    {
+      "type": "section",
+      "identifier": "2.1.1",
+      "title": "Façade treatment",
+      "page_number": 7
+    },
+    {
+      "type": "section",
+      "identifier": "2.1.2",
+      "title": "Roof",
+      "page_number": 7
+    },
+    {
+      "type": "section",
+      "identifier": "2.1.3",
+      "title": "Roof access",
+      "page_number": 8
+    },
+    {
+      "type": "section",
+      "identifier": "2.1.4",
+      "title": "Balconies/ Roof Terraces",
+      "page_number": 8
+    },
+    {
+      "type": "section",
+      "identifier": "2.1.5",
+      "title": "Rainwater strategy",
+      "page_number": 9
+    },
+    {
+      "type": "section",
+      "identifier": "2.1.6",
+      "title": "Windows",
+      "page_number": 10
+    },
+    {
+      "type": "section",
+      "identifier": "2.1.7",
+      "title": "External Doors",
+      "page_number": 10
+    },
+    {
+      "type": "section",
+      "identifier": "2.1.8",
+      "title": "Vents and Grills in the facade",
+      "page_number": 11
+    },
+    {
+      "type": "section",
+      "identifier": "2.2",
+      "title": "APARTMENT LAYOUT/ DESIGN",
+      "page_number": 11
+    },
+    {
+      "type": "section",
+      "identifier": "2.2.1",
+      "title": "Apartment Typology Booklet",
+      "page_number": 11
+    },
+    {
+      "type": "section",
+      "identifier": "2.2.2",
+      "title": "Bathrooms",
+      "page_number": 11
+    },
+    {
+      "type": "section",
+      "identifier": "2.2.3",
+      "title": "SVP-setting out and positioning",
+      "page_number": 12
+    },
+    {
+      "type": "section",
+      "identifier": "2.2.4",
+      "title": "Kitchens",
+      "page_number": 13
+    },
+    {
+      "type": "section",
+      "identifier": "2.2.5",
+      "title": "Appliances/ Utilities",
+      "page_number": 14
+    },
+    {
+      "type": "section",
+      "identifier": "2.2.6",
+      "title": "Storage/ Utility Room",
+      "page_number": 15
+    },
+    {
+      "type": "section",
+      "identifier": "2.2.7",
+      "title": "Wardrobes and storage areas as per Apartment Typology Booklet",
+      "page_number": 15
+    },
+    {
+      "type": "section",
+      "identifier": "2.2.8",
+      "title": "Internal Environment",
+      "page_number": 16
+    },
+    {
+      "type": "section",
+      "identifier": "2.2.9",
+      "title": "Apartment Power and Data Hall",
+      "page_number": 16
+    },
+    {
+      "type": "section",
+      "identifier": "2.3",
+      "title": "INTERNAL COMPONENTS AND FINISHES",
+      "page_number": 17
+    },
+    {
+      "type": "section",
+      "identifier": "2.3.1",
+      "title": "Fire Strategy and firefighting installation",
+      "page_number": 17
+    },
+    {
+      "type": "section",
+      "identifier": "2.3.2",
+      "title": "Acoustics",
+      "page_number": 17
+    },
+    {
+      "type": "section",
+      "identifier": "2.3.3",
+      "title": "Walls",
+      "page_number": 17
+    },
+    {
+      "type": "section",
+      "identifier": "2.3.4",
+      "title": "Ceilings",
+      "page_number": 18
+    },
+    {
+      "type": "section",
+      "identifier": "2.3.5",
+      "title": "Joinery",
+      "page_number": null
+    }
+  ],
+  "document_name": "LDA"
+}

@@ -425,7 +425,7 @@ webview.start(debug=False)
                     )
                 else:
                     history = self.query_engine.query_history
-                    recent = history.get_recent_queries(limit=1)
+                    recent = history.get_recent(limit=1)
                     if recent:
                         self.graph_visualizer.visualize_query_context(
                             query=recent[0]['query'],

@@ -273,7 +273,7 @@ class CrossReferenceEngine:
     
     def _get_all_chunks_from_document(self, document_name: str, limit: int = None) -> List[DocumentChunk]:
         """
-        Get chunks from a document via ChromaDB.
+        Get chunks from a document via Qdrant.
         
         Args:
             document_name: File name (e.g., "LDA.pdf")
@@ -281,34 +281,64 @@ class CrossReferenceEngine:
         """
         try:
             self.logger.info(f"🔍 Getting chunks from document: {document_name}")
-            collection = self.query_engine.chroma_collection
-            if not collection:
-                self.logger.error("❌ Collection not available")
+            
+            if not hasattr(self.query_engine, 'client'):
+                self.logger.error("❌ Qdrant client not available")
                 return []
             
-            # Get chunks for this document using file_name
-            result = collection.get(
-                where={"file_name": document_name},
-                include=['documents', 'metadatas'],
-                limit=limit  # None means get all
-            )
+            client = self.query_engine.client
+            collection_name = self.query_engine.settings.get_collection_name()
             
-            chunk_count = len(result.get('documents', []))
-            self.logger.info(f"📦 Retrieved {chunk_count} chunks from ChromaDB")
-            
+            # Scroll through points and filter by file_name
             chunks = []
-            if result and result.get('documents'):
-                for i, text in enumerate(result['documents']):
-                    metadata = result['metadatas'][i] if result.get('metadatas') else {}
-                    chunk = DocumentChunk(
-                        document_name=document_name,
-                        page=metadata.get('page_label', 'N/A'),
-                        text=text,
-                        metadata=metadata,
-                        section=metadata.get('section')
-                    )
-                    chunks.append(chunk)
+            offset = None
+            chunk_limit = limit or 10000  # Default to 10000 if no limit
             
+            while len(chunks) < chunk_limit:
+                points, next_offset = client.scroll(
+                    collection_name=collection_name,
+                    limit=100,
+                    offset=offset,
+                    with_payload=True,
+                    with_vectors=False,
+                    scroll_filter={
+                        "must": [
+                            {"key": "file_name", "match": {"value": document_name}}
+                        ]
+                    }
+                )
+                
+                for point in points:
+                    if len(chunks) >= chunk_limit:
+                        break
+                    payload = point.payload or {}
+                    text = payload.get('text')
+                    
+                    if not text:
+                        node_content = payload.get('_node_content')
+                        if isinstance(node_content, str):
+                            import json
+                            try:
+                                node_content = json.loads(node_content)
+                                text = node_content.get('text', '')
+                            except:
+                                pass
+                    
+                    if text:
+                        chunk = DocumentChunk(
+                            document_name=document_name,
+                            page=payload.get('page_label', 'N/A'),
+                            text=text,
+                            metadata=payload,
+                            section=payload.get('section')
+                        )
+                        chunks.append(chunk)
+                
+                offset = next_offset
+                if offset is None:
+                    break
+            
+            self.logger.info(f"📦 Retrieved {len(chunks)} chunks from Qdrant")
             return chunks
             
         except Exception as e:

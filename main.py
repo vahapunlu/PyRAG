@@ -38,13 +38,25 @@ def cmd_ingest(args):
     Usage:
         python main.py ingest
         python main.py ingest --force
+        python main.py ingest --file "my_doc.pdf"
     """
     logger.info("=" * 60)
     logger.info("ETL Pipeline - Document Indexing")
     logger.info("=" * 60)
     
+    target_files = None
+    if args.file:
+        from pathlib import Path
+        from src.utils import get_settings
+        settings = get_settings()
+        file_path = Path(settings.data_dir) / args.file
+        if not file_path.exists():
+            logger.error(f"❌ File not found: {file_path}")
+            sys.exit(1)
+        target_files = [file_path]
+    
     ingestion = DocumentIngestion()
-    index = ingestion.ingest_documents(force_reindex=args.force)
+    index = ingestion.ingest_documents(force_reindex=args.force, target_files=target_files)
     
     if index:
         stats = ingestion.get_index_stats()
@@ -209,6 +221,11 @@ Examples:
         '--force', 
         action='store_true',
         help='Delete existing index and rebuild from scratch'
+    )
+    parser_ingest.add_argument(
+        '--file',
+        type=str,
+        help='Specific file to ingest (relative to data/ folder)'
     )
     parser_ingest.set_defaults(func=cmd_ingest)
     

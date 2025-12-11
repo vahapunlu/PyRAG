@@ -1,0 +1,320 @@
+{
+  "elements": [
+    {
+      "type": "section",
+      "title": "About this book",
+      "page_number": 7
+    },
+    {
+      "type": "section",
+      "title": "Space and weight allowances",
+      "page_number": 8
+    },
+    {
+      "type": "figure",
+      "identifier": "Figure 1",
+      "title": "Air cooled condenser – area and height requirements",
+      "page_number": 9
+    },
+    {
+      "type": "figure",
+      "identifier": "Figure 2",
+      "title": "Air cooled condenser – operating weight",
+      "page_number": 9
+    },
+    {
+      "type": "figure",
+      "identifier": "Figure 3",
+      "title": "Air handling units – area and height requirements",
+      "page_number": 10
+    },
+    {
+      "type": "figure",
+      "identifier": "Figure 4",
+      "title": "Air handling units – operating weight",
+      "page_number": 10
+    },
+    {
+      "type": "figure",
+      "identifier": "Figure 5",
+      "title": "Biomass boiler plantroom – area and height requirements",
+      "page_number": 11
+    },
+    {
+      "type": "figure",
+      "identifier": "Figure 6",
+      "title": "Biomass boiler – operating weight",
+      "page_number": 11
+    },
+    {
+      "type": "figure",
+      "identifier": "Figure 7",
+      "title": "Gas fired boiler plantroom – area and height requirements",
+      "page_number": 12
+    },
+    {
+      "type": "figure",
+      "identifier": "Figure 8",
+      "title": "Gas fired boiler – empty and operating weight",
+      "page_number": 12
+    },
+    {
+      "type": "figure",
+      "identifier": "Figure 9",
+      "title": "Horizontal calorifiers – area and height requirements",
+      "page_number": 13
+    },
+    {
+      "type": "figure",
+      "identifier": "Figure 10",
+      "title": "Horizontal calorifiers – operating weight",
+      "page_number": 13
+    },
+    {
+      "type": "figure",
+      "identifier": "Figure 11",
+      "title": "Vertical calorifiers – area and height requirements",
+      "page_number": 14
+    },
+    {
+      "type": "figure",
+      "identifier": "Figure 12",
+      "title": "Vertical calorifiers – operating weight",
+      "page_number": 14
+    },
+    {
+      "type": "figure",
+      "identifier": "Figure 13",
+      "title": "Air cooled chillers – area and height requirements",
+      "page_number": 15
+    },
+    {
+      "type": "figure",
+      "identifier": "Figure 14",
+      "title": "Air cooled chillers – operating weight",
+      "page_number": 15
+    },
+    {
+      "type": "figure",
+      "identifier": "Figure 15",
+      "title": "Water cooled chillers – area and height requirements",
+      "page_number": 16
+    },
+    {
+      "type": "figure",
+      "identifier": "Figure 16",
+      "title": "Water cooled chillers – operating weight",
+      "page_number": 16
+    },
+    {
+      "type": "figure",
+      "identifier": "Figure 17",
+      "title": "Forced draught cooling towers– area and height requirements",
+      "page_number": 17
+    },
+    {
+      "type": "figure",
+      "identifier": "Figure 18",
+      "title": "Forced draught cooling towers – operating weight",
+      "page_number": 17
+    },
+    {
+      "type": "figure",
+      "identifier": "Figure 19",
+      "title": "Induced draught cooling towers – area and height requirements",
+      "page_number": 18
+    },
+    {
+      "type": "figure",
+      "identifier": "Figure 20",
+      "title": "Induced draught cooling towers – operating weight",
+      "page_number": 18
+    },
+    {
+      "type": "figure",
+      "identifier": "Figure 21",
+      "title": "Cold water storage – area and height requirements",
+      "page_number": 19
+    },
+    {
+      "type": "figure",
+      "identifier": "Figure 22",
+      "title": "Cold water storage – operating weight",
+      "page_number": 19
+    },
+    {
+      "type": "figure",
+      "identifier": "Figure 23",
+      "title": "Diesel generators – area and height requirements",
+      "page_number": 20
+    },
+    {
+      "type": "figure",
+      "identifier": "Figure 24",
+      "title": "Diesel generators – operating weight",
+      "page_number": 20
+    },
+    {
+      "type": "figure",
+      "identifier": "Figure 25",
+      "title": "Diesel rotary UPS – area and height requirements",
+      "page_number": 21
+    },
+    {
+      "type": "figure",
+      "identifier": "Figure 26",
+      "title": "Diesel rotary UPS – operating weight",
+      "page_number": 21
+    },
+    {
+      "type": "figure",
+      "identifier": "Figure 27",
+      "title": "Hybrid rotary UPS – area and height requirements",
+      "page_number": 22
+    },
+    {
+      "type": "figure",
+      "identifier": "Figure 28",
+      "title": "Hybrid rotary UPS – operating weight",
+      "page_number": 22
+    },
+    {
+      "type": "figure",
+      "identifier": "Figure 29",
+      "title": "Static UPS – area and height requirements",
+      "page_number": 23
+    },
+    {
+      "type": "figure",
+      "identifier": "Figure 30",
+      "title": "Static UPS – operating weight",
+      "page_number": 23
+    },
+    {
+      "type": "figure",
+      "identifier": "Figure 31",
+      "title": "Packaged substations – area and height requirements",
+      "page_number": 24
+    },
+    {
+      "type": "figure",
+      "identifier": "Figure 32",
+      "title": "Packaged substations – operating weight",
+      "page_number": 24
+    },
+    {
+      "type": "figure",
+      "identifier": "Figure 33",
+      "title": "UPS battery rooms – area and height requirements",
+      "page_number": 25
+    },
+    {
+      "type": "figure",
+      "identifier": "Figure 34",
+      "title": "UPS battery systems – operating weight",
+      "page_number": 25
+    },
+    {
+      "type": "figure",
+      "identifier": "Figure 35",
+      "title": "Switchrooms – area and height requirements",
+      "page_number": 26
+    },
+    {
+      "type": "figure",
+      "identifier": "Figure 36",
+      "title": "Switchroom panels – operating weight",
+      "page_number": 26
+    },
+    {
+      "type": "figure",
+      "identifier": "Figure 37",
+      "title": "Transformers – area and height requirements",
+      "page_number": 27
+    },
+    {
+      "type": "figure",
+      "identifier": "Figure 38",
+      "title": "Transformers – operating weight",
+      "page_number": 27
+    },
+    {
+      "type": "figure",
+      "identifier": "Figure 39",
+      "title": "Biomass fuel storage – area requirements",
+      "page_number": 28
+    },
+    {
+      "type": "table",
+      "identifier": "Table 1",
+      "title": "Space requirements for lift installations",
+      "page_number": 29
+    },
+    {
+      "type": "table",
+      "identifier": "Table 2",
+      "title": "Floor space allowances for building services in different types of building – as a percentage of gross internal area (GIA)",
+      "page_number": 30
+    },
+    {
+      "type": "figure",
+      "identifier": "Figure 40",
+      "title": "Ceiling and floor voids in a generic office building",
+      "page_number": 31
+    },
+    {
+      "type": "figure",
+      "identifier": "Figure 41",
+      "title": "Space requirements and reach distances for installation and maintenance tasks",
+      "page_number": 32
+    },
+    {
+      "type": "table",
+      "identifier": "Table 3",
+      "title": "Building occupancy densities",
+      "page_number": 34
+    },
+    {
+      "type": "table",
+      "identifier": "Table 4",
+      "title": "Minimum structural loadings",
+      "page_number": 35
+    },
+    {
+      "type": "section",
+      "title": "System features – Mechanical building services",
+      "page_number": 36
+    },
+    {
+      "type": "table",
+      "identifier": "Table 5",
+      "title": "Sizing and operating characteristics of hydronic heating and cooling systems",
+      "page_number": 36
+    },
+    {
+      "type": "table",
+      "identifier": "Table 6",
+      "title": "Sizing and operating characteristics of steam systems",
+      "page_number": 38
+    },
+    {
+      "type": "table",
+      "identifier": "Table 7",
+      "title": "Commissioning of hydronic heating and cooling systems",
+      "page_number": 39
+    },
+    {
+      "type": "table",
+      "identifier": "Table 8",
+      "title": "Minimum provision of sanitary appliances for staff in offices, shops and factories (for male and female staff where urinals are not installed)",
+      "page_number": 40
+    },
+    {
+      "type": "table",
+      "identifier": "Table 9",
+      "title": "Minimum provision of sanitary appliances for staff in offices, shops and factories (for male staff only where urinals are installed)",
+      "page_number": 40
+    }
+  ],
+  "document_name": "RULES OF THUMB"
+}

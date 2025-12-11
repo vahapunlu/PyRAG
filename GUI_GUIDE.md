@@ -62,7 +62,7 @@ python main.py
    - **Full-screen interface** with left/right panel layout
 
 4. **🗄️ Database Manager**
-   - View all ChromaDB collections
+   - View all Qdrant collections
    - Browse documents and chunks
    - Edit metadata (project, category, tags)
    - Export documents to text
@@ -320,7 +320,7 @@ pip install --upgrade -r requirements.txt
 ### Clear Index
 
 1. Stop application
-2. Delete `chroma_db/` folder
+2. Delete `qdrant_db/` folder
 3. Restart and re-index
 
 ### View Logs
@@ -354,7 +354,7 @@ Check `logs/pyrag_YYYY-MM-DD.log` for detailed information
 ### ✅ Recently Added
 - [x] **Auto-Summary Engine** - Extract focused info from large specs
 - [x] **Cross-Reference Search** - Search multiple documents at once
-- [x] **Database Manager** - Visual ChromaDB management
+- [x] **Database Manager** - Visual Qdrant management
 - [x] **DeepSeek Integration** - 90% cost reduction vs GPT-4o
 - [x] **Metadata Management** - Project/category tagging system
 - [x] **Full-Screen Auto-Summary** - Modern left/right panel layout

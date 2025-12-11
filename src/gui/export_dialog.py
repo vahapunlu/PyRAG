@@ -213,7 +213,7 @@ class ExportDialog(ctk.CTkToplevel):
         # Get last query from history
         try:
             history = self.query_engine.query_history
-            recent = history.get_recent_queries(limit=1)
+            recent = history.get_recent(limit=1)
             
             if not recent:
                 messagebox.showerror("Error", "No query results to export.")

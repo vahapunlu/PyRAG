@@ -2,7 +2,7 @@
 Database Optimizer
 
 Maintenance and optimization utilities for all databases:
-- ChromaDB compaction and cleanup
+- Qdrant collection optimization
 - Neo4j index optimization
 - SQLite cache maintenance
 - Statistics and health checks

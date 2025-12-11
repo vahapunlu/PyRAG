@@ -26,13 +26,13 @@ PyRAG/
 │       ├── dialogs.py           ✅ Dialog imports hub
 │       ├── new_document_dialog.py     ✅ Document creation
 │       ├── settings_dialog.py         ✅ Settings management
-│       ├── database_manager_dialog.py ✅ ChromaDB management
+│       ├── database_manager_dialog.py ✅ Qdrant management
 │       ├── cross_reference_dialog.py  ✅ Cross-reference UI
 │       └── auto_summary_dialog.py     ✅ Auto-summary UI (full-screen)
 │
 ├── data/                        📂 PDF files location
-├── chroma_db/                  📂 Vector database (auto-created)
-├── logs/                       📂 Log files (auto-created)
+├── qdrant_db/                   📂 Vector database (auto-created)
+├── logs/                        📂 Log files (auto-created)
 │
 ├── main.py                     ✅ CLI entry point
 ├── app_gui.py                  ✅ Windows GUI application
@@ -54,8 +54,8 @@ PyRAG/
 
 ### 1. **Local-First Architecture**
 - All data stays on your computer
-- ChromaDB vector database (file-based)
-- No cloud dependencies except OpenAI API
+- Qdrant vector database (file-based)
+- No cloud dependencies except OpenAI API (embeddings) and DeepSeek API (LLM)
 
 ### 2. **Table-Aware PDF Processing**
 - PyMuPDF4LLM for intelligent table extraction
@@ -72,7 +72,7 @@ PyRAG/
   - Chat interface for Q&A
   - **Auto-Summary**: Extract focused information from large specs
   - **Cross-Reference**: Search across multiple documents
-  - **Database Manager**: Visual ChromaDB management
+  - **Database Manager**: Visual Qdrant management
 - CLI: Single query or interactive mode
 - API: FastAPI REST endpoints
 - Programmatic: Import as Python module
@@ -81,7 +81,7 @@ PyRAG/
 - **Auto-Summary Engine**: Three modes (Topic Extraction, Requirements List, Cross-Trade Comparison)
 - **Cross-Reference Search**: Simultaneous multi-document querying
 - **Database Manager**: Visual metadata management and document export
-- **DeepSeek Integration**: 90% cost reduction vs GPT-4o
+- **DeepSeek LLM**: Cost-effective answer generation
 
 ---
 
@@ -151,8 +151,8 @@ python main.py serve
 ```
 PDF Files → PyMuPDF4LLM (table extraction)
          → Semantic Chunking
-         → OpenAI Embeddings
-         → ChromaDB Storage
+         → OpenAI Embeddings (text-embedding-3-small)
+         → Qdrant Storage
          → Metadata (project, category, tags)
 ```
 
@@ -161,7 +161,7 @@ PDF Files → PyMuPDF4LLM (table extraction)
 User Question → Vector Search (top 10)
              → Similarity Filter (>0.7)
              → Top 3 contexts
-             → GPT-4o/DeepSeek (with system prompt)
+             → DeepSeek (with system prompt)
              → Structured Answer
 ```
 
@@ -184,11 +184,11 @@ User Query + Multiple Docs → Vector Search per Document
 
 ### Database Manager
 ```
-ChromaDB Interface → List Collections
-                  → Browse Documents/Chunks
-                  → Edit Metadata (project/category/tags)
-                  → Export Documents
-                  → Delete Operations
+Qdrant Interface → List Collections
+                → Browse Documents/Chunks
+                → Edit Metadata (project/category/tags)
+                → Export Documents
+                → Delete Operations
 ```
 
 ### API Layer (api.py)
@@ -208,9 +208,9 @@ FastAPI Server
 | Component | Technology | Purpose |
 |-----------|-----------|---------|
 | Framework | LlamaIndex | RAG orchestration |
-| Vector DB | ChromaDB | Local storage |
+| Vector DB | Qdrant | Local storage |
 | PDF Parser | PyMuPDF4LLM | Table extraction |
-| LLM | GPT-4o / DeepSeek | Answer generation (DeepSeek 90% cheaper) |
+| LLM | DeepSeek | Answer generation |
 | Embeddings | text-embedding-3-small | Fast & cheap |
 | API | FastAPI | REST endpoints |
 | GUI | CustomTkinter | Modern Windows UI |
@@ -223,8 +223,8 @@ FastAPI Server
 
 ### Indexing (One-time)
 - **100-page PDF**: ~5-10 minutes
-- **Cost**: ~$0.50-2.00
-- **Storage**: ~50-100MB in ChromaDB
+- **Cost**: ~$0.10-0.50 (embeddings only)
+- **Storage**: ~50-100MB in Qdrant
 
 ### Query (Per request)
 - **Response time**: 2-5 seconds
@@ -237,7 +237,7 @@ FastAPI Server
 
 ✅ **What stays local:**
 - All PDF files
-- Vector database (ChromaDB)
+- Vector database (Qdrant)
 - API keys (.env file)
 - Logs
 
@@ -269,7 +269,7 @@ python main.py stats
 
 ### Expected Results
 - ✅ No errors in logs
-- ✅ `chroma_db/` folder created
+- ✅ `qdrant_db/` folder created
 - ✅ Node count > 0 in stats
 - ✅ Answers reference correct sources
 
@@ -282,19 +282,21 @@ python main.py stats
 - Superior table handling
 - Hierarchical structure support
 
-### 2. **Why ChromaDB?**
+### 2. **Why Qdrant?**
 - Fully local (no server needed)
 - File-based (easy backup)
 - Fast similarity search
 - No Docker required
+- Better performance than ChromaDB
 
 ### 3. **Why Semantic Chunking?**
 - Preserves table integrity
 - Context-aware splits
 - Better retrieval accuracy
 
-### 4. **Why GPT-4o?**
-- Best at complex tables
+### 4. **Why DeepSeek?**
+- Cost-effective (much cheaper than GPT-4o)
+- Good at complex tables
 - Accurate calculations
 - Follows system prompts well
 
@@ -305,10 +307,11 @@ python main.py stats
 ### ✅ Recently Completed
 - [x] **Auto-Summary Engine** - Extract focused info from large specs
 - [x] **Cross-Reference Search** - Multi-document querying
-- [x] **Database Manager** - Visual ChromaDB management
-- [x] **DeepSeek Integration** - 90% cost reduction
+- [x] **Database Manager** - Visual Qdrant management
+- [x] **DeepSeek Integration** - Cost-effective LLM
 - [x] **Modular GUI** - Separated into components
 - [x] **Metadata System** - Project/category tagging
+- [x] **Qdrant Migration** - Removed ChromaDB, Qdrant-only
 
 ### Short-term
 - [ ] PDF export for Auto-Summary (reportlab)
@@ -404,8 +407,9 @@ test: Add tests
 
 ### External Resources
 - LlamaIndex: https://docs.llamaindex.ai/
-- ChromaDB: https://docs.trychroma.com/
+- Qdrant: https://qdrant.tech/documentation/
 - OpenAI: https://platform.openai.com/docs
+- DeepSeek: https://platform.deepseek.com/
 
 ### Getting Help
 1. Check `README.md` troubleshooting

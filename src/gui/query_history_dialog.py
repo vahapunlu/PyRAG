@@ -165,6 +165,16 @@ class QueryHistoryDialog(ctk.CTkToplevel):
         )
         self.export_btn.pack(side="left", padx=5)
         
+        self.clear_all_btn = ctk.CTkButton(
+            button_frame,
+            text="Clear All History",
+            command=self._clear_all_history,
+            width=130,
+            fg_color="#8B0000",
+            hover_color="#B22222"
+        )
+        self.clear_all_btn.pack(side="left", padx=5)
+        
         self.close_btn = ctk.CTkButton(
             button_frame,
             text="Close",
@@ -182,9 +192,9 @@ class QueryHistoryDialog(ctk.CTkToplevel):
         try:
             # Get history
             if search_term:
-                queries = self.history.search_queries(search_term)
+                queries = self.history.search(search_term)
             else:
-                queries = self.history.get_recent_queries(limit=100)
+                queries = self.history.get_recent(limit=100)
             
             # Populate tree
             for query in queries:
@@ -199,7 +209,7 @@ class QueryHistoryDialog(ctk.CTkToplevel):
             stats = self.history.get_statistics()
             stats_text = f"Total Queries: {stats['total_queries']} | "
             stats_text += f"Avg Duration: {stats['avg_duration']:.2f}s | "
-            stats_text += f"Avg Sources: {stats['avg_sources_per_query']:.1f}"
+            stats_text += f"Avg Sources: {stats['avg_sources']:.1f}"
             self.stats_label.configure(text=stats_text)
             
         except Exception as e:
@@ -221,8 +231,9 @@ class QueryHistoryDialog(ctk.CTkToplevel):
             self._load_history()
     
     def _clear_search(self):
-        """Clear search"""
-        self.search_entry.delete(0, 'end')
+        """Clear search and reload all history"""
+        self.search_entry.delete(0, "end")
+        self.search_entry.configure(placeholder_text="🔍 Search queries...")
         self._load_history()
     
     def _on_double_click(self, event):
@@ -242,7 +253,7 @@ class QueryHistoryDialog(ctk.CTkToplevel):
         
         # Get full query details
         try:
-            query = self.history.get_query_by_id(query_id)
+            query = self.history.get_by_id(query_id)
             if not query:
                 messagebox.showerror("Error", "Query not found.")
                 return
@@ -265,7 +276,7 @@ class QueryHistoryDialog(ctk.CTkToplevel):
         query_id = int(self.tree.item(item, 'tags')[0])
         
         try:
-            query = self.history.get_query_by_id(query_id)
+            query = self.history.get_by_id(query_id)
             if not query:
                 messagebox.showerror("Error", "Query not found.")
                 return
@@ -276,6 +287,28 @@ class QueryHistoryDialog(ctk.CTkToplevel):
             
         except Exception as e:
             messagebox.showerror("Error", f"Failed to export query:\n{str(e)}")
+    
+    def _clear_all_history(self):
+        """Clear all query history"""
+        # Confirm before deleting
+        result = messagebox.askyesno(
+            "Confirm Clear All",
+            "Are you sure you want to delete ALL query history?\n\nThis action cannot be undone.",
+            icon="warning"
+        )
+        
+        if result:
+            try:
+                deleted_count = self.history.clear_all()
+                messagebox.showinfo(
+                    "History Cleared",
+                    f"Successfully deleted {deleted_count} queries from history."
+                )
+                # Refresh the list
+                self._load_history()
+                self._update_stats()
+            except Exception as e:
+                messagebox.showerror("Error", f"Failed to clear history:\n{str(e)}")
 
 
 class DetailsDialog(ctk.CTkToplevel):

@@ -1,7 +1,7 @@
 """
 Database Manager Dialog
 
-Dialog for editing document metadata in the ChromaDB collection.
+Dialog for editing document metadata in the Qdrant collection.
 """
 
 import customtkinter as ctk
@@ -266,30 +266,47 @@ class DatabaseManagerDialog(ctk.CTkToplevel):
             
             self.documents = []
             
-            if not self.query_engine or not hasattr(self.query_engine, 'chroma_collection'):
+            # Check for Qdrant
+            if not hasattr(self.query_engine, 'client'):
                 self.info_label.configure(text="⚠️ Database not available")
                 return
             
-            # Get all documents
-            collection = self.query_engine.chroma_collection
-            results = collection.get(include=['metadatas'], limit=10000)
+            # Get all documents from Qdrant
+            client = self.query_engine.client
+            collection_name = self.query_engine.settings.get_collection_name()
             
             # Group by document name
             doc_map = {}
-            for metadata in results.get('metadatas', []):
-                doc_name = metadata.get('document_name')
-                if doc_name and doc_name != 'Unknown':
-                    if doc_name not in doc_map:
-                        doc_map[doc_name] = {
-                            'name': doc_name,
-                            'category': metadata.get('categories', ''),
-                            'project': metadata.get('project_name', 'N/A'),
-                            'standard_no': metadata.get('standard_no', ''),
-                            'date': metadata.get('date', ''),
-                            'description': metadata.get('description', ''),
-                            'count': 0
-                        }
-                    doc_map[doc_name]['count'] += 1
+            offset = None
+            
+            while True:
+                points, next_offset = client.scroll(
+                    collection_name=collection_name,
+                    limit=100,
+                    offset=offset,
+                    with_payload=True,
+                    with_vectors=False
+                )
+                
+                for point in points:
+                    metadata = point.payload or {}
+                    doc_name = metadata.get('document_name', metadata.get('file_name', ''))
+                    if doc_name and doc_name != 'Unknown':
+                        if doc_name not in doc_map:
+                            doc_map[doc_name] = {
+                                'name': doc_name,
+                                'category': metadata.get('categories', ''),
+                                'project': metadata.get('project_name', 'N/A'),
+                                'standard_no': metadata.get('standard_no', ''),
+                                'date': metadata.get('date', ''),
+                                'description': metadata.get('description', ''),
+                                'count': 0
+                            }
+                        doc_map[doc_name]['count'] += 1
+                
+                offset = next_offset
+                if offset is None:
+                    break
             
             self.documents = list(doc_map.values())
             self.doc_count_label.configure(text=f"{len(self.documents)} documents")
@@ -388,53 +405,69 @@ class DatabaseManagerDialog(ctk.CTkToplevel):
             return
         
         try:
-            collection = self.query_engine.chroma_collection
+            client = self.query_engine.client
+            collection_name = self.query_engine.settings.get_collection_name()
             
-            # Get all chunks for this document
-            results = collection.get(
-                where={"document_name": self.selected_doc['name']},
-                include=['metadatas']
+            # Get all points for this document
+            points_to_update = []
+            offset = None
+            
+            while True:
+                points, next_offset = client.scroll(
+                    collection_name=collection_name,
+                    limit=100,
+                    offset=offset,
+                    with_payload=True,
+                    with_vectors=True,  # Need vectors to update
+                    scroll_filter={
+                        "must": [
+                            {"key": "document_name", "match": {"value": self.selected_doc['name']}}
+                        ]
+                    }
+                )
+                
+                for point in points:
+                    # Update payload
+                    new_payload = point.payload.copy() if point.payload else {}
+                    new_payload['document_name'] = new_name
+                    new_payload['categories'] = new_category
+                    new_payload['project_name'] = new_project
+                    if new_standard_no:
+                        new_payload['standard_no'] = new_standard_no
+                    if new_date:
+                        new_payload['date'] = new_date
+                    if new_description:
+                        new_payload['description'] = new_description
+                    
+                    points_to_update.append({
+                        'id': point.id,
+                        'payload': new_payload
+                    })
+                
+                offset = next_offset
+                if offset is None:
+                    break
+            
+            # Update points using set_payload
+            from qdrant_client.models import PointIdsList
+            for point_info in points_to_update:
+                client.set_payload(
+                    collection_name=collection_name,
+                    payload=point_info['payload'],
+                    points=[point_info['id']]
+                )
+            
+            messagebox.showinfo(
+                "Success",
+                f"Updated {len(points_to_update)} nodes successfully!"
             )
             
-            if results['ids']:
-                # Update metadata
-                updated_metadatas = []
-                for meta in results['metadatas']:
-                    new_meta = meta.copy()
-                    new_meta['document_name'] = new_name
-                    new_meta['categories'] = new_category
-                    new_meta['project_name'] = new_project
-                    if new_standard_no:
-                        new_meta['standard_no'] = new_standard_no
-                    elif 'standard_no' in new_meta:
-                        del new_meta['standard_no']
-                    if new_date:
-                        new_meta['date'] = new_date
-                    elif 'date' in new_meta:
-                        del new_meta['date']
-                    if new_description:
-                        new_meta['description'] = new_description
-                    elif 'description' in new_meta:
-                        del new_meta['description']
-                    updated_metadatas.append(new_meta)
-                
-                # Batch update
-                collection.update(
-                    ids=results['ids'],
-                    metadatas=updated_metadatas
-                )
-                
-                messagebox.showinfo(
-                    "Success",
-                    f"Updated {len(results['ids'])} nodes successfully!"
-                )
-                
-                # Refresh
-                self.load_documents()
-                self.selected_doc = None
-                self.name_entry.delete(0, "end")
-                self.update_btn.configure(state="disabled")
-                self.delete_btn.configure(state="disabled")
+            # Refresh
+            self.load_documents()
+            self.selected_doc = None
+            self.name_entry.delete(0, "end")
+            self.update_btn.configure(state="disabled")
+            self.delete_btn.configure(state="disabled")
                 
         except Exception as e:
             logger.error(f"Error updating document: {e}")
@@ -471,21 +504,45 @@ class DatabaseManagerDialog(ctk.CTkToplevel):
             return
         
         try:
-            collection = self.query_engine.chroma_collection
+            client = self.query_engine.client
+            collection_name = self.query_engine.settings.get_collection_name()
             
-            # Get all chunks for this document
-            results = collection.get(
-                where={"document_name": self.selected_doc['name']},
-                include=['metadatas']
-            )
+            # Get all point IDs for this document
+            points_to_delete = []
+            offset = None
             
-            if results['ids']:
-                # Delete all chunks
-                collection.delete(ids=results['ids'])
+            while True:
+                points, next_offset = client.scroll(
+                    collection_name=collection_name,
+                    limit=100,
+                    offset=offset,
+                    with_payload=False,
+                    with_vectors=False,
+                    scroll_filter={
+                        "must": [
+                            {"key": "document_name", "match": {"value": self.selected_doc['name']}}
+                        ]
+                    }
+                )
+                
+                for point in points:
+                    points_to_delete.append(point.id)
+                
+                offset = next_offset
+                if offset is None:
+                    break
+            
+            if points_to_delete:
+                # Delete all points
+                from qdrant_client.models import PointIdsList
+                client.delete(
+                    collection_name=collection_name,
+                    points_selector=PointIdsList(points=points_to_delete)
+                )
                 
                 messagebox.showinfo(
                     "Success",
-                    f"Deleted {len(results['ids'])} nodes of '{self.selected_doc['name']}'!"
+                    f"Deleted {len(points_to_delete)} nodes of '{self.selected_doc['name']}'!"
                 )
                 
                 # Refresh

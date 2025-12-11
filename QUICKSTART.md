@@ -40,7 +40,7 @@ python main.py
 - 💬 **Chat**: Natural Q&A with your documents
 - 📄 **Auto-Summary**: Extract focused info from large specs (full-screen interface)
 - 🔗 **Cross-Reference**: Search across multiple documents simultaneously
-- 🗄️ **Database Manager**: Visual ChromaDB management with metadata editing
+- 🗄️ **Database Manager**: Visual Qdrant management with metadata editing
 - 📁 **Add Document**: Upload PDFs with project/category metadata
 - 📊 **Statistics**: View database stats and document counts
 

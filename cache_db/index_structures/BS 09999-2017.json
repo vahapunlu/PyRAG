@@ -1,0 +1,448 @@
+{
+  "elements": [
+    {
+      "type": "section",
+      "identifier": "Foreword",
+      "page_number": 0
+    },
+    {
+      "type": "section",
+      "identifier": "Section 1: General",
+      "page_number": 1
+    },
+    {
+      "type": "section",
+      "identifier": "Introduction",
+      "page_number": 1
+    },
+    {
+      "type": "section",
+      "identifier": "Scope",
+      "page_number": 7
+    },
+    {
+      "type": "section",
+      "identifier": "Normative references",
+      "page_number": 7
+    },
+    {
+      "type": "section",
+      "identifier": "Terms and definitions",
+      "page_number": 12
+    },
+    {
+      "type": "section",
+      "identifier": "General recommendations and background",
+      "page_number": 24
+    },
+    {
+      "type": "section",
+      "identifier": "Basis of design",
+      "page_number": 24
+    },
+    {
+      "type": "section",
+      "identifier": "Variation of recommendations",
+      "page_number": 25
+    },
+    {
+      "type": "section",
+      "identifier": "Property protection and business continuity",
+      "page_number": 25
+    },
+    {
+      "type": "section",
+      "identifier": "Environment",
+      "page_number": 25
+    },
+    {
+      "type": "section",
+      "identifier": "Mixed-use buildings incorporating residential use",
+      "page_number": 26
+    },
+    {
+      "type": "section",
+      "identifier": "Additional recommendations for specific building types/occupancies",
+      "page_number": 26
+    },
+    {
+      "type": "section",
+      "identifier": "Inclusive design",
+      "page_number": 26
+    },
+    {
+      "type": "section",
+      "identifier": "Section 2: Risk profiles and assessing risk",
+      "page_number": 28
+    },
+    {
+      "type": "section",
+      "identifier": "Assessing risk",
+      "page_number": 28
+    },
+    {
+      "type": "section",
+      "identifier": "Risk profiles",
+      "page_number": 29
+    },
+    {
+      "type": "section",
+      "identifier": "General",
+      "page_number": 29
+    },
+    {
+      "type": "section",
+      "identifier": "Occupancy characteristic",
+      "page_number": 30
+    },
+    {
+      "type": "section",
+      "identifier": "Fire growth rate",
+      "page_number": 30
+    },
+    {
+      "type": "section",
+      "identifier": "Creating the risk profile",
+      "page_number": 32
+    },
+    {
+      "type": "section",
+      "identifier": "Variation of risk profile",
+      "page_number": 33
+    },
+    {
+      "type": "section",
+      "identifier": "Section 3: Ensuring effective fire protection",
+      "page_number": 34
+    },
+    {
+      "type": "section",
+      "identifier": "Ensuring effective fire protection",
+      "page_number": 34
+    },
+    {
+      "type": "section",
+      "identifier": "General",
+      "page_number": 34
+    },
+    {
+      "type": "section",
+      "identifier": "The design stage",
+      "page_number": 34
+    },
+    {
+      "type": "section",
+      "identifier": "The construction stage",
+      "page_number": 35
+    },
+    {
+      "type": "section",
+      "identifier": "The maintenance stage",
+      "page_number": 36
+    },
+    {
+      "type": "section",
+      "identifier": "Section 4: Designing for the management of fire risk",
+      "page_number": 37
+    },
+    {
+      "type": "section",
+      "identifier": "Establishing fire risk management systems",
+      "page_number": 37
+    },
+    {
+      "type": "section",
+      "identifier": "General",
+      "page_number": 37
+    },
+    {
+      "type": "section",
+      "identifier": "Management system levels",
+      "page_number": 37
+    },
+    {
+      "type": "section",
+      "identifier": "Implementing fire risk management strategy",
+      "page_number": 38
+    },
+    {
+      "type": "section",
+      "identifier": "Designing fire risk management into buildings",
+      "page_number": 41
+    },
+    {
+      "type": "section",
+      "identifier": "Fire safety documentation",
+      "page_number": 42
+    },
+    {
+      "type": "section",
+      "identifier": "Designing so that a building can be managed",
+      "page_number": 42
+    },
+    {
+      "type": "section",
+      "identifier": "General",
+      "page_number": 43
+    },
+    {
+      "type": "section",
+      "identifier": "Management input",
+      "page_number": 43
+    },
+    {
+      "type": "section",
+      "identifier": "Designing for the management of fire prevention",
+      "page_number": 44
+    },
+    {
+      "type": "section",
+      "identifier": "Designing for the management of fire protection",
+      "page_number": 47
+    },
+    {
+      "type": "section",
+      "identifier": "Section 5: Designing means of escape",
+      "page_number": 52
+    },
+    {
+      "type": "section",
+      "identifier": "Principles of means of escape",
+      "page_number": 52
+    },
+    {
+      "type": "section",
+      "identifier": "Evacuation strategy",
+      "page_number": 54
+    },
+    {
+      "type": "section",
+      "identifier": "General",
+      "page_number": 54
+    },
+    {
+      "type": "section",
+      "identifier": "Total evacuation",
+      "page_number": 55
+    },
+    {
+      "type": "section",
+      "identifier": "Progressive evacuation",
+      "page_number": 56
+    },
+    {
+      "type": "bibliography",
+      "identifier": "Bibliography",
+      "page_number": 381
+    },
+    {
+      "type": "index",
+      "identifier": "Index",
+      "page_number": 389
+    },
+    {
+      "type": "list of figures",
+      "identifier": "List of figures",
+      "page_number": 0
+    },
+    {
+      "type": "figure",
+      "identifier": "Figure 1",
+      "title": "Example of the application of BS 9999 to a typical design process",
+      "page_number": 4
+    },
+    {
+      "type": "figure",
+      "identifier": "Figure 2",
+      "title": "Comparison of fire and time line development",
+      "page_number": 52
+    },
+    {
+      "type": "figure",
+      "identifier": "Figure 3",
+      "title": "Occupant response and travel time",
+      "page_number": 53
+    },
+    {
+      "type": "figure",
+      "identifier": "Figure 4",
+      "title": "Escape route on associated floor areas",
+      "page_number": 58
+    },
+    {
+      "type": "figure",
+      "identifier": "Figure 5",
+      "title": "Designing means of escape",
+      "page_number": 59
+    },
+    {
+      "type": "figure",
+      "identifier": "Figure 6",
+      "title": "Merging flow at final exit level",
+      "page_number": 68
+    },
+    {
+      "type": "figure",
+      "identifier": "Figure 7",
+      "title": "Escape routes 45° or more apart",
+      "page_number": 75
+    },
+    {
+      "type": "figure",
+      "identifier": "Figure 8",
+      "title": "Inner room and access room",
+      "page_number": 77
+    },
+    {
+      "type": "figure",
+      "identifier": "Figure 9",
+      "title": "Exits in a central core",
+      "page_number": 78
+    },
+    {
+      "type": "figure",
+      "identifier": "Figure 10",
+      "title": "Dead-end corridors and corridors connecting alternative exits",
+      "page_number": 80
+    },
+    {
+      "type": "figure",
+      "identifier": "Figure 11",
+      "title": "Recesses off corridors",
+      "page_number": 82
+    },
+    {
+      "type": "figure",
+      "identifier": "Figure 12",
+      "title": "Extension of corridor beyond a protected stairway",
+      "page_number": 82
+    },
+    {
+      "type": "figure",
+      "identifier": "Figure 13",
+      "title": "Progressive horizontal evacuation",
+      "page_number": 84
+    },
+    {
+      "type": "figure",
+      "identifier": "Figure 14",
+      "title": "Measurement of door width",
+      "page_number": 86
+    },
+    {
+      "type": "figure",
+      "identifier": "Figure 15",
+      "title": "External protection to protected stairways – Configurations of stairs and external wall",
+      "page_number": 90
+    },
+    {
+      "type": "figure",
+      "identifier": "Figure 16",
+      "title": "Fire resistance of areas adjacent to external stairs",
+      "page_number": 95
+    },
+    {
+      "type": "figure",
+      "identifier": "Figure 17",
+      "title": "Process for assessing additional fire protection measures",
+      "page_number": 98
+    },
+    {
+      "type": "figure",
+      "identifier": "Figure 18",
+      "title": "Hose distances for the location of fire-fighting shafts and additional riser outlets",
+      "page_number": 108
+    },
+    {
+      "type": "figure",
+      "identifier": "Figure 19",
+      "title": "Minimum extent of fire-fighting stairs and lifts in tall buildings and buildings with deep basements",
+      "page_number": 109
+    },
+    {
+      "type": "figure",
+      "identifier": "Figure 20",
+      "title": "Typical fire-fighting shaft layout at fire and rescue service access level – Fire and rescue service access at lowest storey",
+      "page_number": 110
+    },
+    {
+      "type": "figure",
+      "identifier": "Figure 21",
+      "title": "Typical fire-fighting shaft layout at fire and rescue service access level – Fire and rescue service access directly from open air ground level in a building with basements",
+      "page_number": 111
+    },
+    {
+      "type": "figure",
+      "identifier": "Figure 22",
+      "title": "Passenger lifts within a fire-fighting shaft",
+      "page_number": 112
+    },
+    {
+      "type": "figure",
+      "identifier": "Figure 23",
+      "title": "Protection of the fire-fighting shaft from external fire",
+      "page_number": 115
+    },
+    {
+      "type": "figure",
+      "identifier": "Figure 24",
+      "title": "Firefighters lift within escape stair",
+      "page_number": 119
+    },
+    {
+      "type": "figure",
+      "identifier": "Figure 25",
+      "title": "Example of fire-fighting shaft layout for a dual-entry firefighters lift",
+      "page_number": 120
+    },
+    {
+      "type": "figure",
+      "identifier": "Figure 26",
+      "title": "Example of building footprint and perimeter",
+      "page_number": 124
+    },
+    {
+      "type": "figure",
+      "identifier": "Figure 27",
+      "title": "Relationship between building and hard-standing/access road for high-reach fire appliances",
+      "page_number": 126
+    },
+    {
+      "type": "figure",
+      "identifier": "Figure 28",
+      "title": "Free area of smoke ventilators",
+      "page_number": 135
+    },
+    {
+      "type": "figure",
+      "identifier": "Figure 29",
+      "title": "Compartment floors",
+      "page_number": 159
+    },
+    {
+      "type": "figure",
+      "identifier": "Figure 30",
+      "title": "Junction of a compartment wall with a roof",
+      "page_number": 162
+    },
+    {
+      "type": "figure",
+      "identifier": "Figure 31",
+      "title": "Ductwork passing through protected routes (Method 2 or Method 3)",
+      "page_number": 174
+    },
+    {
+      "type": "figure",
+      "identifier": "Figure 32",
+      "title": "Ductwork passing through protected routes (Method 4)",
+      "page_number": 174
+    },
+    {
+      "type": "figure",
+      "identifier": "Figure 33",
+      "title": "Flues and compartment walls and floors",
+      "page_number": 180
+    }
+  ],
+  "document_name": "BS 09999-2017"
+}

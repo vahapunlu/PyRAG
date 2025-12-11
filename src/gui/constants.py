@@ -24,6 +24,7 @@ COLORS = {
     'gray': '#cccccc',
     'dark_bg': '#2b2b2b',
     'darker_bg': '#333333',
+    'hover': '#3d3d3d',
     'success_tint': '#1a4d2e',
     'error_tint': '#4d1a1a',
 }
@@ -118,18 +119,24 @@ DEFAULT_PROJECTS = ["N/A"]
 MESSAGES = {
     'welcome': """
 ════════════════════════════════════════════════════
-  Welcome to PyRAG - Engineering Standards AI
+  ⚡ PyRAG - Engineering Standards AI
 ════════════════════════════════════════════════════
 
 🚀 Getting Started:
-   1. Add documents using the "New Document" button
+   1. Add documents using "New Document" button (Ctrl+N)
    2. Ask questions about your engineering standards
    3. Get instant, accurate answers with source references
 
-💡 Tips:
-   • Use specific questions for better results
-   • Filter by category or document for focused searches
-   • View statistics to see your document library
+💡 Pro Tips:
+   • Use Templates dropdown for common question formats
+   • Filter by category/document for focused searches
+   • Click follow-up suggestions for deeper exploration
+   • Copy or Export answers with quick action buttons
+
+⌨️ Keyboard Shortcuts:
+   Ctrl+Enter → Send  |  Ctrl+H → History  |  F1 → Help
+
+🌐 Language: Ask in Turkish or English - I'll respond in the same language!
 
 Ready to help! Ask me anything about your standards.
 """,

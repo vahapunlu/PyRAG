@@ -1,7 +1,7 @@
 """
 Graph Builder
 
-Automatically builds knowledge graph from ChromaDB documents.
+Automatically builds knowledge graph from Qdrant documents.
 Extracts references and creates nodes/relationships in Neo4j.
 """
 
@@ -9,8 +9,8 @@ from typing import List, Dict, Optional
 from loguru import logger
 from src.reference_extractor import get_reference_extractor
 from src.graph_manager import get_graph_manager
-import chromadb
-from chromadb.config import Settings as ChromaSettings
+from src.utils import get_settings
+import qdrant_client
 
 
 class GraphBuilder:
@@ -18,21 +18,20 @@ class GraphBuilder:
     Build knowledge graph from document collection
     
     Process:
-    1. Get all documents from ChromaDB
+    1. Get all documents from Qdrant
     2. Extract references using ReferenceExtractor
     3. Create nodes in Neo4j (documents, sections, standards)
     4. Create relationships (CONTAINS, REFERS_TO)
     """
     
-    def __init__(self, chroma_path: str, collection_name: str):
+    def __init__(self, collection_name: str = "default"):
         """
         Initialize graph builder
         
         Args:
-            chroma_path: Path to ChromaDB
             collection_name: Collection name
         """
-        self.chroma_path = chroma_path
+        self.settings = get_settings()
         self.collection_name = collection_name
         self.reference_extractor = get_reference_extractor()
         self.graph_manager = get_graph_manager()
@@ -44,7 +43,7 @@ class GraphBuilder:
     
     def build_graph(self, clear_existing: bool = False):
         """
-        Build complete knowledge graph from ChromaDB
+        Build complete knowledge graph from Qdrant
         
         Args:
             clear_existing: Clear existing graph before building (default: False)
@@ -58,8 +57,9 @@ class GraphBuilder:
         # Step 1: Create indexes
         self.graph_manager.create_indexes()
         
-        # Step 2: Get all documents from ChromaDB
-        documents = self._get_documents_from_chroma()
+        # Step 2: Get all documents from Qdrant
+        documents = self._get_documents_from_qdrant()
+            
         logger.info(f"   Found {len(documents)} unique documents")
         
         # Step 3: Process each document
@@ -82,55 +82,81 @@ class GraphBuilder:
         
         return graph_stats
     
-    def _get_documents_from_chroma(self) -> Dict[str, Dict]:
+    def _get_documents_from_qdrant(self) -> Dict[str, Dict]:
         """
-        Get all documents from ChromaDB collection
+        Get all documents from Qdrant collection
         
         Returns:
             Dict of {doc_name: {metadata, chunks}}
         """
-        # Connect to ChromaDB
-        chroma_client = chromadb.PersistentClient(
-            path=self.chroma_path,
-            settings=ChromaSettings(anonymized_telemetry=False)
-        )
-        
-        collection = chroma_client.get_collection(name=self.collection_name)
-        
-        # Get all data
-        results = collection.get(include=['metadatas', 'documents'])
-        
-        # Group by document
-        documents = {}
-        for i, metadata in enumerate(results['metadatas']):
-            doc_name = metadata.get('document_name', metadata.get('file_name', 'Unknown'))
+        try:
+            client = qdrant_client.QdrantClient(path=self.settings.qdrant_path)
             
-            if doc_name not in documents:
-                documents[doc_name] = {
-                    'name': doc_name,
-                    'metadata': {
-                        'file_name': metadata.get('file_name', ''),
-                        'standard_no': metadata.get('standard_no', ''),
-                        'date': metadata.get('date', ''),
-                        'description': metadata.get('description', ''),
-                    },
-                    'chunks': [],
-                    'sections': set()
-                }
+            # Scroll through all points
+            offset = None
+            documents = {}
             
-            # Add chunk
-            chunk_text = results['documents'][i]
-            documents[doc_name]['chunks'].append({
-                'text': chunk_text,
-                'metadata': metadata
-            })
+            while True:
+                points, next_offset = client.scroll(
+                    collection_name=self.collection_name,
+                    limit=100,
+                    offset=offset,
+                    with_payload=True,
+                    with_vectors=False
+                )
+                
+                for point in points:
+                    metadata = point.payload or {}
+                    # LlamaIndex stores text in 'text' or '_node_content'
+                    text = metadata.get('text')
+                    if not text:
+                        node_content = metadata.get('_node_content')
+                        if isinstance(node_content, str):
+                            import json
+                            try:
+                                node_content = json.loads(node_content)
+                                text = node_content.get('text', '')
+                            except:
+                                pass
+                    
+                    if not text:
+                        continue
+                        
+                    doc_name = metadata.get('document_name', metadata.get('file_name', 'Unknown'))
+                    
+                    if doc_name not in documents:
+                        documents[doc_name] = {
+                            'name': doc_name,
+                            'metadata': {
+                                'file_name': metadata.get('file_name', ''),
+                                'standard_no': metadata.get('standard_no', ''),
+                                'date': metadata.get('date', ''),
+                                'description': metadata.get('description', ''),
+                            },
+                            'chunks': [],
+                            'sections': set()
+                        }
+                    
+                    # Add chunk
+                    documents[doc_name]['chunks'].append({
+                        'text': text,
+                        'metadata': metadata
+                    })
+                    
+                    # Track sections
+                    section = metadata.get('section_number', '')
+                    if section:
+                        documents[doc_name]['sections'].add(section)
+                
+                offset = next_offset
+                if offset is None:
+                    break
             
-            # Track sections
-            section = metadata.get('section_number', '')
-            if section:
-                documents[doc_name]['sections'].add(section)
-        
-        return documents
+            return documents
+            
+        except Exception as e:
+            logger.error(f"Error fetching documents from Qdrant: {e}")
+            return {}
     
     def _process_document(self, doc_name: str, doc_data: Dict, stats: Dict):
         """
@@ -302,21 +328,19 @@ class GraphBuilder:
             logger.warning(f"Failed to add document to graph: {e}")
 
 
-def build_graph_from_chroma(chroma_path: str = "./chroma_db", 
-                           collection_name: str = "mep_standards",
-                           clear_existing: bool = False) -> Dict:
+def build_graph_from_qdrant(collection_name: str = "default", 
+                          clear_existing: bool = False) -> Dict:
     """
-    Convenience function to build graph from ChromaDB
+    Convenience function to build graph from Qdrant
     
     Args:
-        chroma_path: Path to ChromaDB
         collection_name: Collection name
         clear_existing: Clear existing graph
         
     Returns:
         Graph statistics
     """
-    builder = GraphBuilder(chroma_path, collection_name)
+    builder = GraphBuilder(collection_name=collection_name)
     stats = builder.build_graph(clear_existing=clear_existing)
     builder.graph_manager.close()
     return stats

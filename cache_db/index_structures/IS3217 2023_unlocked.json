@@ -1,0 +1,140 @@
+{
+  "elements": [
+    {
+      "type": "section",
+      "identifier": "DECLARATION",
+      "page_number": 1
+    },
+    {
+      "type": "section",
+      "identifier": "Schedule",
+      "page_number": 8
+    },
+    {
+      "type": "section",
+      "identifier": "1 Scope",
+      "page_number": 8
+    },
+    {
+      "type": "section",
+      "identifier": "2 Normative references",
+      "page_number": 8
+    },
+    {
+      "type": "section",
+      "identifier": "3 Terms and definitions",
+      "page_number": 9
+    },
+    {
+      "type": "section",
+      "identifier": "4 Emergency lighting system types",
+      "page_number": 15
+    },
+    {
+      "type": "section",
+      "identifier": "4.1 General",
+      "page_number": 15
+    },
+    {
+      "type": "section",
+      "identifier": "4.2 Emergency lighting classifications",
+      "page_number": 15
+    },
+    {
+      "type": "section",
+      "identifier": "4.3 Self-contained systems",
+      "page_number": 15
+    },
+    {
+      "type": "section",
+      "identifier": "4.4 Central safety power supply system (CPS system)",
+      "page_number": 16
+    },
+    {
+      "type": "section",
+      "identifier": "4.5 Generators",
+      "page_number": 16
+    },
+    {
+      "type": "section",
+      "identifier": "4.6 Automatic test system (ATS)",
+      "page_number": 17
+    },
+    {
+      "type": "section",
+      "identifier": "5 Emergency lighting design and installation",
+      "page_number": 17
+    },
+    {
+      "type": "section",
+      "identifier": "5.1 General",
+      "page_number": 17
+    },
+    {
+      "type": "section",
+      "identifier": "5.2 CPS systems design requirements",
+      "page_number": 19
+    },
+    {
+      "type": "section",
+      "identifier": "5.3 Emergency escape lighting",
+      "page_number": 20
+    },
+    {
+      "type": "section",
+      "identifier": "5.4 Open area lighting",
+      "page_number": 25
+    },
+    {
+      "type": "section",
+      "identifier": "5.5 High risk task area lighting",
+      "page_number": 25
+    },
+    {
+      "type": "section",
+      "identifier": "5.6 System integrity",
+      "page_number": 26
+    },
+    {
+      "type": "section",
+      "identifier": "5.7 Siting of emergency escape lighting luminaires",
+      "page_number": 26
+    },
+    {
+      "type": "section",
+      "identifier": "5.8 Emergency exit signs",
+      "page_number": 30
+    },
+    {
+      "type": "section",
+      "identifier": "6 Emergency lighting luminaires – Circuits, control equipment and test facilities",
+      "page_number": 33
+    },
+    {
+      "type": "section",
+      "identifier": "6.1 Construction",
+      "page_number": 33
+    },
+    {
+      "type": "section",
+      "identifier": "6.2 Flammability",
+      "page_number": 34
+    },
+    {
+      "type": "section",
+      "identifier": "6.3 Test facility",
+      "page_number": 34
+    },
+    {
+      "type": "section",
+      "identifier": "7 Installation",
+      "page_number": 34
+    },
+    {
+      "type": "section",
+      "identifier": "7.1 General",
+      "page_number": 34
+    }
+  ],
+  "document_name": "IS3217 2023_unlocked"
+}

@@ -18,7 +18,7 @@ from ..ingestion import DocumentIngestion
 from .constants import *
 from .sidebar import Sidebar
 from .chat import ChatArea
-from .dialogs import NewDocumentDialog, SettingsDialog, DatabaseManagerDialog, CrossReferenceDialog, AutoSummaryDialog, AutoSummaryDialog
+from .dialogs import NewDocumentDialog, SettingsDialog, DatabaseManagerDialog, CrossReferenceDialog, AutoSummaryDialog
 
 
 class PyRAGApp(ctk.CTk):
@@ -51,8 +51,86 @@ class PyRAGApp(ctk.CTk):
         # Create components
         self._create_components()
         
+        # Setup keyboard shortcuts
+        self._setup_keyboard_shortcuts()
+        
         # Initialize system
         self.after(500, self.initialize_system)
+    
+    def _setup_keyboard_shortcuts(self):
+        """Setup global keyboard shortcuts"""
+        # Ctrl+Enter: Send message (alternative)
+        self.bind("<Control-Return>", lambda e: self.send_message())
+        
+        # Ctrl+K: Focus on filter dropdown
+        self.bind("<Control-k>", lambda e: self._focus_filter())
+        self.bind("<Control-K>", lambda e: self._focus_filter())
+        
+        # Ctrl+H: Show query history
+        self.bind("<Control-h>", lambda e: self.show_history())
+        self.bind("<Control-H>", lambda e: self.show_history())
+        
+        # Ctrl+E: Export results
+        self.bind("<Control-e>", lambda e: self.export_results())
+        self.bind("<Control-E>", lambda e: self.export_results())
+        
+        # Ctrl+N: New document
+        self.bind("<Control-n>", lambda e: self.open_new_document_dialog())
+        self.bind("<Control-N>", lambda e: self.open_new_document_dialog())
+        
+        # Ctrl+D: Database manager
+        self.bind("<Control-d>", lambda e: self.open_database_manager())
+        self.bind("<Control-D>", lambda e: self.open_database_manager())
+        
+        # Ctrl+L: Clear chat
+        self.bind("<Control-l>", lambda e: self.clear_chat())
+        self.bind("<Control-L>", lambda e: self.clear_chat())
+        
+        # Ctrl+/: Focus on input
+        self.bind("<Control-slash>", lambda e: self._focus_input())
+        
+        # F1: Show shortcuts help
+        self.bind("<F1>", lambda e: self._show_shortcuts_help())
+        
+        logger.info("⌨️ Keyboard shortcuts enabled")
+    
+    def _focus_filter(self):
+        """Focus on the category filter dropdown"""
+        try:
+            self.chat.cat_filter.focus_set()
+        except:
+            pass
+    
+    def _focus_input(self):
+        """Focus on the input entry"""
+        try:
+            self.chat.input_entry.focus_set()
+        except:
+            pass
+    
+    def _show_shortcuts_help(self):
+        """Show keyboard shortcuts help dialog"""
+        shortcuts = """
+⌨️ KEYBOARD SHORTCUTS
+
+📨 Input & Navigation:
+  Enter           Send message
+  Ctrl + Enter    Send message (alternative)
+  Ctrl + /        Focus on input field
+  Ctrl + K        Focus on filter dropdown
+  Ctrl + L        Clear chat
+
+📁 Documents & Tools:
+  Ctrl + N        New document
+  Ctrl + D        Database manager
+  Ctrl + H        Query history
+  Ctrl + E        Export results
+
+❓ Help:
+  F1              Show this help
+  Esc             Close dialog (in dialogs)
+"""
+        messagebox.showinfo("Keyboard Shortcuts", shortcuts)
     
     def _create_components(self):
         """Create UI components"""
@@ -80,8 +158,22 @@ class PyRAGApp(ctk.CTk):
             logger.info("🔧 Initializing system...")
             self.chat.append_message("\n⏳ Initializing AI system...", "system")
             
+            # Close existing query engine if any
+            if self.query_engine:
+                try:
+                    self.query_engine.close()
+                except:
+                    pass
+            
             # Initialize query engine
-            self.query_engine = QueryEngine()
+            try:
+                self.query_engine = QueryEngine()
+            except Exception as e:
+                if "already accessed" in str(e):
+                    self.chat.append_message("⚠️ Database locked. Please restart application.", "error")
+                    logger.error(f"Database lock error: {e}")
+                    return
+                raise e
             
             # Check if index exists
             stats = self.query_engine.get_stats()
@@ -93,15 +185,15 @@ class PyRAGApp(ctk.CTk):
                     "system"
                 )
                 logger.success(f"✅ System initialized with {total_nodes} nodes")
-                
-                # Load available documents and projects for filters
-                self._load_filter_options()
             else:
                 self.chat.append_message(
                     "⚠️ No documents found. Please add documents to get started.",
                     "system"
                 )
                 logger.warning("⚠️ No documents in vector store")
+            
+            # Always load filter options (categories/projects from settings)
+            self._load_filter_options()
             
             # Update sidebar status
             self.sidebar.update_status(embedding_status=True, llm_status=True)
@@ -131,7 +223,10 @@ class PyRAGApp(ctk.CTk):
         
         # Display user message
         self.chat.append_message(question, "user")
-        self.chat.append_message("\n🔍 Searching documents...", "system")
+        
+        # Start dynamic status updates
+        self._status_message_id = None
+        self._update_status("📊 Analyzing query...")
         
         # Process in background
         thread = threading.Thread(
@@ -140,6 +235,10 @@ class PyRAGApp(ctk.CTk):
         )
         thread.daemon = True
         thread.start()
+    
+    def _update_status(self, message):
+        """Update status message in chat (replace previous status)"""
+        self.chat.update_status_message(message)
     
     def _process_query(self, question):
         """Process query in background thread"""
@@ -156,8 +255,17 @@ class PyRAGApp(ctk.CTk):
             if active_filters.get('project'):
                 filter_dict['project'] = active_filters['project']
             
+            # Status: Searching
+            self.after(0, self._update_status, "🔍 Searching documents...")
+            
+            # Status: Collecting context
+            self.after(500, self._update_status, "📚 Collecting relevant context...")
+            
             # Get response
             response = self.query_engine.query(question, filters=filter_dict)
+            
+            # Status: Generating
+            self.after(0, self._update_status, "🧠 Generating answer...")
             
             # Extract query analysis from metadata
             query_analysis = None
@@ -194,49 +302,78 @@ class PyRAGApp(ctk.CTk):
             categories = app_settings.get("categories", [])
             projects = app_settings.get("projects", [])
             
-            # Get document metadata directly from ChromaDB
-            if self.query_engine and hasattr(self.query_engine, 'chroma_collection'):
-                doc_metadata = {}
-                
-                # Get collection
-                collection = self.query_engine.chroma_collection
-                
-                # Get all metadata (limit to first 10000 to avoid memory issues)
-                results = collection.get(include=['metadatas'], limit=10000)
-                
-                # Process metadata
-                for metadata in results.get('metadatas', []):
-                    # Use document_name first, fallback to file_name
-                    doc_name = metadata.get('document_name', metadata.get('file_name', ''))
-                    file_name = metadata.get('file_name', doc_name)
+            # Get document metadata from Qdrant
+            doc_metadata = {}
+            
+            if self.query_engine and hasattr(self.query_engine, 'client'):
+                try:
+                    collection_name = self.query_engine.settings.get_collection_name()
                     
-                    if doc_name and doc_name != 'Unknown':
-                        if doc_name not in doc_metadata:
-                            # Get standard_no for display, use file_name for search
-                            standard_no = metadata.get('standard_no', '')
-                            # Show only Standard No if available, otherwise show document name
-                            display_name = standard_no if standard_no else doc_name
+                    # Check if collection exists first
+                    collections = self.query_engine.client.get_collections().collections
+                    collection_exists = any(c.name == collection_name for c in collections)
+                    
+                    if not collection_exists:
+                        logger.warning(f"Collection '{collection_name}' does not exist yet")
+                        # Still update filter options with empty documents
+                        self.chat.update_filter_options(
+                            documents=[],
+                            categories=categories,
+                            projects=projects
+                        )
+                        return
+                    
+                    offset = None
+                    while True:
+                        points, next_offset = self.query_engine.client.scroll(
+                            collection_name=collection_name,
+                            limit=100,
+                            offset=offset,
+                            with_payload=True,
+                            with_vectors=False
+                        )
+                        
+                        for point in points:
+                            metadata = point.payload or {}
+                            doc_name = metadata.get('document_name', metadata.get('file_name', ''))
+                            file_name = metadata.get('file_name', doc_name)
                             
-                            doc_metadata[doc_name] = {
-                                'name': doc_name,  # Document name
-                                'file_name': file_name,  # Exact file name for filtering
-                                'display_name': display_name,  # Standard No for UI
-                                'standard_no': standard_no,
-                                'categories': set(),
-                                'project': metadata.get('project_name', 'N/A')
-                            }
+                            if doc_name and doc_name != 'Unknown':
+                                if doc_name not in doc_metadata:
+                                    standard_no = metadata.get('standard_no', '')
+                                    display_name = standard_no if standard_no else doc_name
+                                    
+                                    doc_metadata[doc_name] = {
+                                        'name': doc_name,
+                                        'file_name': file_name,
+                                        'display_name': display_name,
+                                        'standard_no': standard_no,
+                                        'categories': set(),
+                                        'project': metadata.get('project_name', 'N/A')
+                                    }
+                                
+                                cats = metadata.get('categories', '')
+                                if cats:
+                                    for cat in cats.split(','):
+                                        cat = cat.strip()
+                                        if cat and cat != 'Uncategorized':
+                                            doc_metadata[doc_name]['categories'].add(cat)
+                                
+                                if not doc_metadata[doc_name]['categories']:
+                                    doc_metadata[doc_name]['categories'].add('Uncategorized')
                         
-                        # Add categories (stored as comma-separated string)
-                        cats = metadata.get('categories', '')
-                        if cats:
-                            for cat in cats.split(','):
-                                cat = cat.strip()
-                                if cat and cat != 'Uncategorized':
-                                    doc_metadata[doc_name]['categories'].add(cat)
-                        
-                        # If no categories found, use default
-                        if not doc_metadata[doc_name]['categories']:
-                            doc_metadata[doc_name]['categories'].add('Uncategorized')
+                        offset = next_offset
+                        if offset is None:
+                            break
+                except Exception as e:
+                    logger.error(f"Error fetching Qdrant metadata: {e}")
+                    # Still update filter options with categories/projects even if Qdrant fails
+                    self.chat.update_filter_options(
+                        documents=[],
+                        categories=categories,
+                        projects=projects
+                    )
+                    return
                 
                 # Convert to list format with categories as lists
                 documents = []
@@ -257,6 +394,7 @@ class PyRAGApp(ctk.CTk):
                 )
                 
                 logger.info(f"Loaded {len(documents)} documents, {len(categories)} categories, {len(projects)} projects")
+            
             else:
                 # Fallback if no index
                 self.chat.update_filter_options(
@@ -277,6 +415,9 @@ class PyRAGApp(ctk.CTk):
             response: Query response dict
             query_analysis: Optional query analysis data
         """
+        # Clear status message first
+        self.chat.clear_status_message()
+        
         # Store query analysis in chat
         if query_analysis:
             self.chat.set_query_analysis(query_analysis)
@@ -290,15 +431,24 @@ class PyRAGApp(ctk.CTk):
         # Display normal response
         if 'response' in response:
             self.chat.append_message(response['response'], "assistant")
+            
+            # Calculate and display confidence score
+            sources = response.get('sources', [])
+            if sources:
+                scores = [s.get('score', 0) for s in sources[:3] if s.get('score')]
+                if scores:
+                    avg_score = sum(scores) / len(scores)
+                    confidence_text = self._format_confidence(avg_score, len(sources))
+                    self.chat.append_message(confidence_text, "system")
         
-            if response.get('sources'):
                 sources_text = "\n📚 Sources:\n"
                 for i, source in enumerate(response['sources'][:3], 1):
                     doc_name = source.get('document', 'Unknown')
                     page = source.get('page', 'N/A')
                     standard_no = source.get('standard_no', '')
                     date = source.get('date', '')
-                    description = source.get('description', '')
+                    # Use actual text snippet, not description metadata
+                    text_snippet = source.get('text', '')
                     
                     # Build source line with metadata
                     source_line = f"   {i}. {doc_name}"
@@ -316,14 +466,107 @@ class PyRAGApp(ctk.CTk):
                     
                     sources_text += source_line + "\n"
                     
-                    # Add description on separate line if available
-                    if description:
-                        sources_text += f"      💬 \"{description}\"\n"
+                    # Add text snippet on separate line (first 150 chars)
+                    if text_snippet:
+                        snippet = text_snippet[:150].replace('\n', ' ').strip()
+                        if snippet:
+                            sources_text += f"      💬 \"{snippet}...\"\n"
                 
                 self.chat.append_message(sources_text, "source")
+            
+            # Generate and display follow-up suggestions
+            follow_ups = self._generate_follow_ups(response, query_analysis)
+            if follow_ups:
+                self.chat.display_follow_ups(follow_ups, self._on_follow_up_click)
         else:
             # Fallback if response structure is unexpected
             self.chat.append_message("⚠️ Received unexpected response format.", "system")
+    
+    def _format_confidence(self, score, source_count):
+        """Format confidence score display
+        
+        Args:
+            score: Average similarity score (0-1)
+            source_count: Number of sources found
+        """
+        percentage = int(score * 100)
+        
+        if percentage >= 85:
+            emoji = "🎯"
+            level = "High"
+            color_hint = ""
+        elif percentage >= 70:
+            emoji = "✅"
+            level = "Good"
+            color_hint = ""
+        elif percentage >= 50:
+            emoji = "⚠️"
+            level = "Moderate"
+            color_hint = " - verify manually"
+        else:
+            emoji = "❗"
+            level = "Low"
+            color_hint = " - limited sources found"
+        
+        return f"\n{emoji} Confidence: {percentage}% ({level}{color_hint}) | Based on {source_count} source(s)"
+    
+    def _generate_follow_ups(self, response, query_analysis):
+        """Generate follow-up question suggestions
+        
+        Args:
+            response: Query response
+            query_analysis: Query analysis data
+            
+        Returns:
+            List of follow-up question strings
+        """
+        follow_ups = []
+        
+        # Get sources to extract topics
+        sources = response.get('sources', [])
+        if not sources:
+            return []
+        
+        # Extract key topics from response and sources
+        response_text = response.get('response', '').lower()
+        
+        # Common engineering follow-up patterns
+        patterns = {
+            'cable': ['What is the installation method?', 'What are the derating factors?', 'What is the minimum bending radius?'],
+            'lighting': ['What is the color temperature?', 'What are the IP ratings required?', 'What is the warranty period?'],
+            'ups': ['What is the battery backup time?', 'What are the maintenance requirements?', 'What is the efficiency rating?'],
+            'fire': ['What are the compartmentation requirements?', 'What is the detection coverage?', 'What are the testing intervals?'],
+            'electrical': ['What is the earthing system?', 'What are the protection devices?', 'What is the voltage drop limit?'],
+            'generator': ['What is the fuel consumption?', 'What are the noise levels?', 'What is the startup time?'],
+        }
+        
+        # Find matching patterns
+        for keyword, questions in patterns.items():
+            if keyword in response_text:
+                # Add 1-2 relevant questions
+                for q in questions[:2]:
+                    if q not in follow_ups:
+                        follow_ups.append(q)
+                break
+        
+        # Add a generic "more details" follow-up if we have sources
+        if sources and len(follow_ups) < 3:
+            doc_name = sources[0].get('document', '')
+            if doc_name:
+                follow_ups.append(f"What else does {doc_name[:30]} say about this?")
+        
+        return follow_ups[:3]  # Max 3 suggestions
+    
+    def _on_follow_up_click(self, question):
+        """Handle follow-up question click
+        
+        Args:
+            question: The follow-up question text
+        """
+        # Set the question in input and send
+        self.chat.input_entry.delete(0, "end")
+        self.chat.input_entry.insert(0, question)
+        self.send_message()
     
     def on_feedback(self, query, response, sources, feedback_type, comment=None):
         """
@@ -402,18 +645,30 @@ class PyRAGApp(ctk.CTk):
             # Get unique document names from collection metadata
             documents = set()
             try:
-                collection = self.query_engine.chroma_collection
-                if collection:
-                    # Get all metadata
-                    result = collection.get(include=['metadatas'])
-                    if result and result.get('metadatas'):
-                        for metadata in result['metadatas']:
-                            # Use file_name directly (with extension) - this is what query_engine expects
+                # Qdrant Support
+                if hasattr(self.query_engine, 'client') and "qdrant" in str(type(self.query_engine.client)).lower():
+                    collection_name = self.query_engine.settings.get_collection_name()
+                    offset = None
+                    while True:
+                        points, next_offset = self.query_engine.client.scroll(
+                            collection_name=collection_name,
+                            limit=100,
+                            offset=offset,
+                            with_payload=True,
+                            with_vectors=False
+                        )
+                        
+                        for point in points:
+                            metadata = point.payload or {}
                             file_name = metadata.get('file_name', '')
                             if file_name and file_name != 'Unknown':
                                 documents.add(file_name)
                         
-                        logger.info(f"Found {len(documents)} unique documents: {documents}")
+                        offset = next_offset
+                        if offset is None:
+                            break
+                        
+                logger.info(f"Found {len(documents)} unique documents: {documents}")
             except Exception as e:
                 logger.error(f"Error extracting document names: {e}")
             
@@ -453,20 +708,32 @@ class PyRAGApp(ctk.CTk):
                 )
                 return
             
-            # Get unique document names from collection metadata
+            # Get unique document names from Qdrant
             documents = set()
             try:
-                collection = self.query_engine.chroma_collection
-                if collection:
-                    # Get all metadata
-                    result = collection.get(include=['metadatas'])
-                    if result and result.get('metadatas'):
-                        for metadata in result['metadatas']:
+                if hasattr(self.query_engine, 'client'):
+                    collection_name = self.query_engine.settings.get_collection_name()
+                    offset = None
+                    while True:
+                        points, next_offset = self.query_engine.client.scroll(
+                            collection_name=collection_name,
+                            limit=100,
+                            offset=offset,
+                            with_payload=True,
+                            with_vectors=False
+                        )
+                        
+                        for point in points:
+                            metadata = point.payload or {}
                             file_name = metadata.get('file_name', '')
                             if file_name and file_name != 'Unknown':
                                 documents.add(file_name)
                         
-                        logger.info(f"Found {len(documents)} unique documents: {documents}")
+                        offset = next_offset
+                        if offset is None:
+                            break
+                        
+                    logger.info(f"Found {len(documents)} unique documents: {documents}")
             except Exception as e:
                 logger.error(f"Error extracting document names: {e}")
             
@@ -643,7 +910,7 @@ class PyRAGApp(ctk.CTk):
         try:
             # Get last query from history
             history = self.query_engine.query_history
-            recent = history.get_recent_queries(limit=1)
+            recent = history.get_recent(limit=1)
             
             if not recent:
                 messagebox.showinfo(
@@ -739,7 +1006,9 @@ def main():
         app.mainloop()
         
     except Exception as e:
+        import traceback
         logger.error(f"Application error: {e}")
+        logger.error(f"Traceback:\n{traceback.format_exc()}")
         messagebox.showerror("Error", f"Application error:\n{e}")
 
 

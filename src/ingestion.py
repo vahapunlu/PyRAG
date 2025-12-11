@@ -1,7 +1,7 @@
 """
 PyRAG - ETL Pipeline (Data Loading and Indexing)
 
-This module reads PDFs, extracts tables, and indexes them into ChromaDB.
+This module reads PDFs, extracts tables, and indexes them into Qdrant.
 """
 
 import os
@@ -10,8 +10,6 @@ import threading
 from pathlib import Path
 from typing import List, Optional, Dict, Tuple, Callable
 import pymupdf4llm
-import chromadb
-from chromadb.config import Settings as ChromaSettings
 
 from llama_index.core import (
     VectorStoreIndex,
@@ -28,11 +26,20 @@ from llama_index.core.node_parser import (
 )
 from llama_index.embeddings.openai import OpenAIEmbedding
 from llama_index.llms.openai import OpenAI
-from llama_index.vector_stores.chroma import ChromaVectorStore
+from llama_index.vector_stores.qdrant import QdrantVectorStore
+import qdrant_client
 
 from loguru import logger
 from src.utils import get_settings, setup_logger, validate_files, load_document_categories
 from src.graph_builder import GraphBuilder
+from src.index_extractor import extract_index
+from src.contextual_chunker import (
+    get_contextual_chunker, 
+    get_entity_extractor,
+    ContextualChunker,
+    EntityExtractor
+)
+from src.knowledge_graph import get_kg_constructor, KnowledgeGraphConstructor
 
 
 class DocumentIngestion:
@@ -40,8 +47,9 @@ class DocumentIngestion:
     Reads PDF documents, processes them, and loads into vector database
     """
     
-    def __init__(self, collection_name: Optional[str] = None):
+    def __init__(self, collection_name: Optional[str] = None, client=None):
         self.settings = get_settings()
+        self.external_client = client
         
         # Override collection name if provided
         if collection_name:
@@ -51,33 +59,24 @@ class DocumentIngestion:
         self._setup_llama_index()
         self._setup_vector_store()
         self._setup_graph_builder()
+        self._setup_contextual_processing()
         
     def _setup_llama_index(self):
         """Configure LlamaIndex global settings"""
         logger.info("🔧 Configuring LlamaIndex...")
         
-        # Determine which LLM to use based on model name
-        if "deepseek" in self.settings.llm_model.lower():
-            # DeepSeek uses OpenAI-compatible API
-            logger.info("📡 Using DeepSeek API (90% cheaper!)...")
-            Settings.llm = OpenAI(
-                model=self.settings.llm_model,
-                temperature=self.settings.llm_temperature,
-                api_key=self.settings.deepseek_api_key,
-                api_base="https://api.deepseek.com"
-            )
-        else:
-            # Default to OpenAI
-            logger.info("📡 Using OpenAI API...")
-            Settings.llm = OpenAI(
-                model=self.settings.llm_model,
-                temperature=self.settings.llm_temperature,
-                api_key=self.settings.openai_api_key
-            )
+        # Use DeepSeek API (OpenAI-compatible)
+        logger.info("📡 Using DeepSeek API...")
+        Settings.llm = OpenAI(
+            model=self.settings.llm_model,
+            temperature=self.settings.llm_temperature,
+            api_key=self.settings.deepseek_api_key,
+            api_base="https://api.deepseek.com"
+        )
         
-        # Embedding settings (OpenAI text-embedding-3-large for best quality)
+        # Embedding settings (OpenAI text-embedding-3-small)
         Settings.embed_model = OpenAIEmbedding(
-            model="text-embedding-3-large",
+            model=self.settings.embedding_model,
             api_key=self.settings.openai_api_key
         )
         
@@ -88,39 +87,31 @@ class DocumentIngestion:
         logger.success("✅ LlamaIndex configured")
     
     def _setup_vector_store(self):
-        """Prepare ChromaDB database"""
-        logger.info("🔧 Connecting to ChromaDB...")
+        """Prepare Vector Database (Qdrant)"""
+        collection_name = self.settings.get_collection_name()
         
-        # ChromaDB client
-        self.chroma_client = chromadb.PersistentClient(
-            path=self.settings.chroma_db_path,
-            settings=ChromaSettings(
-                anonymized_telemetry=False
-            )
-        )
+        logger.info("🔧 Connecting to Qdrant...")
         
-        # Create or load collection (support dynamic collection names)
-        try:
-            collection_name = self.settings.get_collection_name()
-            self.chroma_collection = self.chroma_client.get_or_create_collection(
-                name=collection_name,
-                metadata={"description": "Engineering Standards RAG Database"}
+        # Qdrant client (local mode)
+        if self.external_client:
+            logger.info("   Using existing Qdrant client")
+            self.client = self.external_client
+        else:
+            self.client = qdrant_client.QdrantClient(
+                path=self.settings.qdrant_path
             )
-            logger.success(f"✅ Collection '{collection_name}' ready")
-        except Exception as e:
-            logger.error(f"❌ ChromaDB collection error: {e}")
-            raise
         
         # Vector store wrapper
-        self.vector_store = ChromaVectorStore(
-            chroma_collection=self.chroma_collection
+        self.vector_store = QdrantVectorStore(
+            client=self.client,
+            collection_name=collection_name
         )
+        logger.success(f"✅ Qdrant collection '{collection_name}' ready")
     
     def _setup_graph_builder(self):
         """Initialize Graph Builder for Neo4j integration"""
         try:
             self.graph_builder = GraphBuilder(
-                chroma_path=self.settings.chroma_db_path,
                 collection_name=self.settings.get_collection_name()
             )
             logger.success("✅ Graph Builder initialized for Neo4j sync")
@@ -128,6 +119,33 @@ class DocumentIngestion:
             logger.warning(f"⚠️  Graph Builder not available: {e}")
             logger.warning("   Documents will be indexed to vector store only (Neo4j disabled)")
             self.graph_builder = None
+    
+    def _setup_contextual_processing(self):
+        """Initialize Contextual Chunker, Entity Extractor and Knowledge Graph Constructor"""
+        try:
+            # Contextual Chunker - adds document/section context to each chunk
+            self.contextual_chunker = get_contextual_chunker(
+                llm=None,  # Don't use LLM for now (cost-saving)
+                use_llm=False
+            )
+            
+            # Entity Extractor - extracts standards, specs, requirements
+            self.entity_extractor = get_entity_extractor()
+            
+            logger.success("✅ Contextual processing initialized (Anthropic approach)")
+        except Exception as e:
+            logger.warning(f"⚠️  Contextual processing not available: {e}")
+            self.contextual_chunker = None
+            self.entity_extractor = None
+        
+        # Knowledge Graph Constructor - automatic entity-relationship extraction
+        try:
+            graph_mgr = self.graph_builder.graph_manager if self.graph_builder else None
+            self.kg_constructor = get_kg_constructor(graph_manager=graph_mgr)
+            logger.success("✅ Knowledge Graph Constructor initialized")
+        except Exception as e:
+            logger.warning(f"⚠️  Knowledge Graph Constructor not available: {e}")
+            self.kg_constructor = None
     
     def extract_section_info(self, text: str) -> Dict[str, str]:
         """
@@ -153,11 +171,10 @@ class DocumentIngestion:
         # Pattern 2: Section number at start of line
         # Matches: "1.2.3 Cable Requirements" or "1.2.3. Cable Requirements"
         pattern2 = r'^(\d+(?:\.\d+)*)[\.:]?\s+([A-Z][^\n]{5,80})$'
-        
         # Pattern 3: "Section X.Y:" or "Section X.Y -"
         pattern3 = r'Section\s+(\d+(?:\.\d+)*)\s*[:\-]?\s*(.+)$'
         
-        lines = text.split('\n')[:10]  # Check first 10 lines only
+        lines = text.split('\n')[:20]  # Check first 20 lines (increased from 10)
         
         for line in lines:
             line = line.strip()
@@ -225,7 +242,17 @@ class DocumentIngestion:
             
             # Handle PDF files
             if file_path.suffix.lower() == '.pdf':
-                # Table-aware reading with PyMuPDF4LLM
+                # 1. Extract TOC Structure (New Feature)
+                toc_elements = []
+                try:
+                    logger.info("   🔍 Extracting Table of Contents...")
+                    toc_structure = extract_index(str(file_path))
+                    toc_elements = toc_structure.get('elements', [])
+                    logger.info(f"   ✅ Found {len(toc_elements)} TOC entries")
+                except Exception as e:
+                    logger.warning(f"   ⚠️ Could not extract TOC: {e}")
+
+                # 2. Convert to Markdown
                 md_text = pymupdf4llm.to_markdown(
                     str(file_path),
                     page_chunks=True,
@@ -239,11 +266,43 @@ class DocumentIngestion:
                 for idx, page_data in enumerate(md_text):
                     page_num = idx + 1
                     page_text = page_data.get("text", "")
+                    
+                    # Strategy 1: Regex-based extraction
                     section_info = self.extract_section_info(page_text)
+                    
+                    # Strategy 2: TOC-based extraction (Fallback & Enhancement)
+                    if not section_info['section_number'] and toc_elements:
+                        for elem in toc_elements:
+                            title = elem.get('title', '').strip()
+                            identifier = elem.get('identifier', '').strip()
+                            
+                            if not title or len(title) < 4:
+                                continue
+                                
+                            # Check if title appears as a header line in text
+                            # We look for the title at the start of a line, possibly preceded by the identifier
+                            
+                            # Escape special regex chars in title
+                            safe_title = re.escape(title)
+                            
+                            # Match: Start of line + (Optional Identifier) + Title + End of line
+                            # e.g. "1.2 Scope" or just "Scope"
+                            pattern = r'^\s*(?:' + re.escape(identifier) + r'[\.\s]+)?' + safe_title + r'\s*$'
+                            
+                            if re.search(pattern, page_text, re.MULTILINE | re.IGNORECASE):
+                                section_info['section_number'] = identifier
+                                section_info['section_title'] = title
+                                logger.debug(f"   Found section via TOC: {identifier} {title}")
+                                break
                     
                     if section_info['section_number']:
                         last_section_num = section_info['section_number']
                         last_section_title = section_info['section_title']
+                    
+                    # Extract entities for enhanced metadata
+                    entity_metadata = {}
+                    if self.entity_extractor:
+                        entity_metadata = self.entity_extractor.extract_for_metadata(page_text)
                     
                     metadata = {
                         "file_name": file_path.name,
@@ -256,10 +315,13 @@ class DocumentIngestion:
                         "section_title": last_section_title,
                         "categories": ", ".join(categories) if categories else "Uncategorized",
                         "project_name": file_project or "N/A",
+                        # Enhanced entity metadata
+                        **entity_metadata
                     }
                     
                     documents.append(Document(text=page_text, metadata=metadata))
             
+            # Handle Text and Markdown files
             # Handle Text and Markdown files
             elif file_path.suffix.lower() in ['.txt', '.md']:
                 with open(file_path, 'r', encoding='utf-8') as f:
@@ -315,7 +377,8 @@ class DocumentIngestion:
     
     def ingest_documents(self, force_reindex: bool = False, categories: Optional[List[str]] = None, 
                         progress_callback: Optional[Callable[[str, float], None]] = None,
-                        stop_event: Optional[threading.Event] = None) -> VectorStoreIndex:
+                        stop_event: Optional[threading.Event] = None,
+                        target_files: Optional[List[Path]] = None) -> VectorStoreIndex:
         """
         Main ETL function: Read files and load into database
         
@@ -324,6 +387,7 @@ class DocumentIngestion:
             categories: List of document categories
             progress_callback: Function to call with (status_message, progress_percent)
             stop_event: Event to check for cancellation
+            target_files: Optional list of specific files to ingest
             
         Returns:
             Created or loaded index
@@ -334,7 +398,14 @@ class DocumentIngestion:
             logger.info(f"📋 Document categories: {', '.join(categories)}")
         
         # Check existing index
-        existing_count = self.chroma_collection.count()
+        existing_count = 0
+        if hasattr(self, 'client'):
+            try:
+                existing_count = self.client.count(
+                    collection_name=self.settings.get_collection_name()
+                ).count
+            except:
+                existing_count = 0
         
         if existing_count > 0 and not force_reindex:
             logger.info(f"ℹ️  Found existing index ({existing_count} nodes)")
@@ -354,7 +425,11 @@ class DocumentIngestion:
             return index
         
         # Find files
-        files = validate_files()
+        if target_files:
+            files = target_files
+            logger.info(f"🎯 Targeting {len(files)} specific file(s)")
+        else:
+            files = validate_files()
         
         if not files:
             logger.error("❌ No supported files found. Aborting.")
@@ -416,10 +491,26 @@ class DocumentIngestion:
         logger.info(f"📊 Created {len(nodes)} total nodes ({len(leaf_nodes)} leaf nodes for indexing)")
         logger.info(f"   Each leaf node has parent context for better retrieval!")
         
+        # Apply Contextual Enrichment (Anthropic Approach)
+        # This adds document/section context prefix to each chunk for better embeddings
+        if self.contextual_chunker:
+            if progress_callback:
+                progress_callback("Enriching chunks with contextual information...", 70)
+            
+            logger.info("🧠 Applying Contextual Enrichment (Anthropic approach)...")
+            logger.info("   Adding document/section context to each chunk for better embeddings")
+            
+            leaf_nodes = self.contextual_chunker.enrich_chunks(leaf_nodes, all_documents)
+            
+            logger.success(f"✅ {len(leaf_nodes)} chunks enriched with contextual prefixes")
+        
         # Create storage context
         storage_context = StorageContext.from_defaults(
             vector_store=self.vector_store
         )
+        
+        if progress_callback:
+            progress_callback("Creating vector embeddings...", 75)
         
         # Create index from leaf nodes (embedding + write to database)
         logger.info("🔄 Creating vector index with hierarchical structure...")
@@ -453,10 +544,19 @@ class DocumentIngestion:
             progress_callback("Indexing complete!", 100)
             
         # Statistics
-        final_count = self.chroma_collection.count()
+        final_count = 0
+        db_loc = self.settings.qdrant_path
+        if hasattr(self, 'client'):
+            try:
+                final_count = self.client.count(
+                    collection_name=self.settings.get_collection_name()
+                ).count
+            except:
+                pass
+                
         logger.success(f"✅ Indexing complete!")
         logger.info(f"📊 Total nodes: {final_count}")
-        logger.info(f"📁 Database location: {self.settings.chroma_db_path}")
+        logger.info(f"📁 Database location: {db_loc}")
         
         return index
     
@@ -527,6 +627,15 @@ class DocumentIngestion:
             leaf_nodes = get_leaf_nodes(nodes)
             
             logger.info(f"📊 Created {len(nodes)} total nodes ({len(leaf_nodes)} leaf nodes)")
+            
+            # Apply Contextual Enrichment (Anthropic Approach)
+            if self.contextual_chunker:
+                if progress_callback:
+                    progress_callback('enriching', 40)
+                
+                logger.info("🧠 Applying Contextual Enrichment...")
+                leaf_nodes = self.contextual_chunker.enrich_chunks(leaf_nodes, docs)
+                logger.success(f"✅ {len(leaf_nodes)} chunks enriched")
             
             if progress_callback:
                 progress_callback('chunking', 50)
@@ -600,14 +709,23 @@ class DocumentIngestion:
     def get_index_stats(self) -> dict:
         """Get information about current index"""
         try:
-            count = self.chroma_collection.count()
-            metadata = self.chroma_collection.metadata
+            count = 0
+            metadata = {}
+            db_path = self.settings.qdrant_path
+            
+            if hasattr(self, 'client'):
+                try:
+                    count = self.client.count(
+                        collection_name=self.settings.get_collection_name()
+                    ).count
+                except:
+                    count = 0
             
             return {
-                "collection_name": self.settings.collection_name,
+                "collection_name": self.settings.get_collection_name(),
                 "total_nodes": count,
                 "metadata": metadata,
-                "db_path": self.settings.chroma_db_path
+                "db_path": db_path
             }
         except Exception as e:
             logger.error(f"❌ Failed to get statistics: {e}")

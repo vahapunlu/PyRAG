@@ -1,0 +1,101 @@
+{
+  "elements": [
+    {
+      "type": "section",
+      "identifier": "1",
+      "title": "Overview",
+      "page_number": 4
+    },
+    {
+      "type": "section",
+      "identifier": "2",
+      "title": "Telecommunications Infrastructure",
+      "page_number": 5
+    },
+    {
+      "type": "section",
+      "identifier": "3",
+      "title": "Laying duct",
+      "page_number": 6
+    },
+    {
+      "type": "section",
+      "identifier": "4",
+      "title": "Underground clearances from public utilities",
+      "page_number": 6
+    },
+    {
+      "type": "section",
+      "identifier": "5",
+      "title": "Joint box construction",
+      "page_number": 7
+    },
+    {
+      "type": "section",
+      "identifier": "6",
+      "title": "Customer Lead in Pipe for Single Dwelling Units",
+      "page_number": 8
+    },
+    {
+      "type": "section",
+      "identifier": "7",
+      "title": "Customer Lead in Pipe for duplex units",
+      "page_number": 9
+    },
+    {
+      "type": "section",
+      "identifier": "8",
+      "title": "Multi Dwelling Units (MDU)",
+      "page_number": 10
+    },
+    {
+      "type": "section",
+      "identifier": "8.1",
+      "title": "MDU Internal micro-duct network",
+      "page_number": 11
+    },
+    {
+      "type": "section",
+      "identifier": "8.2",
+      "title": "Open eir access to duct, micro-ducts, cables, connection boxes and fibre enclosures",
+      "page_number": 11
+    },
+    {
+      "type": "section",
+      "identifier": "9",
+      "title": "Power and space requirements in a unit requiring service",
+      "page_number": 12
+    },
+    {
+      "type": "section",
+      "identifier": "10",
+      "title": "When is a dwelling unit ready for connection",
+      "page_number": 13
+    },
+    {
+      "type": "section",
+      "identifier": "11",
+      "title": "Supply of materials",
+      "page_number": 14
+    },
+    {
+      "type": "section",
+      "identifier": "11.1",
+      "title": "Supply of internal materials for MDUs",
+      "page_number": 14
+    },
+    {
+      "type": "section",
+      "identifier": "11.2",
+      "title": "Supply of outside plant materials",
+      "page_number": 14
+    },
+    {
+      "type": "annex",
+      "identifier": "Appendix 1",
+      "title": "Joint Box Specifications",
+      "page_number": 16
+    }
+  ],
+  "document_name": "EIR-Builders Specification"
+}
