@@ -22,6 +22,23 @@ class QueryExpander:
     
     # MEP Domain Synonyms and Related Terms
     MEP_EXPANSIONS = {
+        # Multi-word MEP technical terms (PRIORITY - checked first)
+        "kablo tavası": ["cable tray", "ladder tray", "cable_tray", "kablo kanalı"],
+        "cable tray": ["kablo tavası", "ladder tray", "cable_tray", "kablo kanalı"],
+        "yangın dedektörü": ["fire detector", "fire_detector", "smoke detector", "heat detector"],
+        "duman dedektörü": ["smoke detector", "smoke_detector", "fire detector"],
+        "ısı dedektörü": ["heat detector", "heat_detector", "temperature detector"],
+        "acil aydınlatma": ["emergency lighting", "emergency_lighting", "backup lighting"],
+        "paratoner sistemi": ["lightning protection", "lightning_protection", "surge protection"],
+        "topraklama sistemi": ["grounding system", "grounding_system", "earthing system"],
+        "güç kaynağı": ["power supply", "power_supply", "power source"],
+        "sigorta kutusu": ["fuse box", "fuse_box", "distribution board"],
+        "elektrik panosu": ["electrical panel", "electrical_panel", "switchboard"],
+        "koruma rölesi": ["protection relay", "protection_relay", "protective relay"],
+        "devre kesici": ["circuit breaker", "circuit_breaker", "MCB", "MCCB"],
+        "kaçak akım": ["leakage current", "leakage_current", "residual current"],
+        "kısa devre": ["short circuit", "short_circuit", "fault"],
+        
         # Electrical terms
         "cable": ["cable", "conductor", "wire", "wiring", "cabling", "kablo", "iletken"],
         "kablo": ["cable", "conductor", "wire", "wiring", "cabling", "kablo", "iletken"],
@@ -126,6 +143,7 @@ class QueryExpander:
     def expand(self, query: str, include_related: bool = False) -> str:
         """
         Expand query with synonyms and related terms
+        Prioritizes multi-word technical terms before single words
         
         Args:
             query: Original user query
@@ -136,20 +154,27 @@ class QueryExpander:
         """
         query_lower = query.lower()
         expansions_found = []
+        matched = False
         
-        # Find matching expansions
-        for key, synonyms in self.MEP_EXPANSIONS.items():
+        # First pass: Check for multi-word technical terms (highest priority)
+        # Sort keys by length (longest first) to match "kablo tavası" before "kablo"
+        sorted_keys = sorted(self.MEP_EXPANSIONS.keys(), key=len, reverse=True)
+        
+        for key in sorted_keys:
             if key in query_lower:
+                synonyms = self.MEP_EXPANSIONS[key]
                 # Add synonyms that are not already in the query
                 for synonym in synonyms:
                     if synonym.lower() not in query_lower and synonym not in expansions_found:
                         expansions_found.append(synonym)
                         if len(expansions_found) >= self.max_expansions:
                             break
+                matched = True
+                logger.debug(f"   🎯 Matched term: '{key}' → {expansions_found}")
                 break  # Only expand first match to avoid noise
         
-        # Add related concepts if requested
-        if include_related and not expansions_found:
+        # Add related concepts if requested and no expansion found
+        if include_related and not matched:
             for key, concepts in self.RELATED_CONCEPTS.items():
                 if key in query_lower:
                     for concept in concepts[:2]:  # Max 2 related concepts

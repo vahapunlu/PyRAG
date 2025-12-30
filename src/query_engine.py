@@ -38,6 +38,7 @@ from src.export_manager import get_export_manager
 from src.graph_visualizer import get_graph_visualizer
 from src.hybrid_search import get_hybrid_search_engine, HybridSearchEngine
 from src.graph_rag import get_graph_rag, GraphRAG
+from src.feedback_learner import get_feedback_learner
 from src.error_handler import (
     get_error_handler, 
     ErrorCategory, 
@@ -48,6 +49,8 @@ from src.error_handler import (
     validate_input
 )
 from src.health_check import get_health_check, HealthStatus
+from src.response_validator import get_response_validator
+from src.bullet_feedback_manager import get_bullet_feedback_manager
 
 
 class QueryEngine:
@@ -71,10 +74,26 @@ class QueryEngine:
                                           category=ErrorCategory.DATABASE) if use_response_cache else None
         self.feedback_manager = safe_execute(get_feedback_manager, error_handler=self.error_handler,
                                             category=ErrorCategory.DATABASE)
+        self.feedback_learner = safe_execute(get_feedback_learner, error_handler=self.error_handler,
+                                            category=ErrorCategory.PROCESSING)
         self.query_analyzer = safe_execute(get_query_analyzer, error_handler=self.error_handler,
                                           category=ErrorCategory.PROCESSING)
         self.bm25_searcher = safe_execute(get_bm25_searcher, error_handler=self.error_handler,
                                          category=ErrorCategory.PROCESSING)
+        self.response_validator = safe_execute(
+            lambda: get_response_validator(
+                min_confidence=0.35,  # Minimum retrieval confidence (lowered from 0.5)
+                min_citation_coverage=0.6,  # 60% of bullets must have citations (lowered from 0.7)
+                max_hallucination_score=0.4  # Max 40% unverified claims (relaxed from 0.3)
+            ),
+            error_handler=self.error_handler,
+            category=ErrorCategory.PROCESSING
+        )
+        self.bullet_feedback_manager = safe_execute(
+            get_bullet_feedback_manager,
+            error_handler=self.error_handler,
+            category=ErrorCategory.DATABASE
+        )
         self.graph_retriever = safe_execute(get_graph_retriever, error_handler=self.error_handler,
                                            category=ErrorCategory.NETWORK)
         self.query_history = safe_execute(get_query_history, error_handler=self.error_handler,
@@ -487,18 +506,32 @@ class QueryEngine:
             query_to_use = expanded_query
             start_time = time.time()
             
+            # Determine retrieval depth based on filter specificity
+            # Single document selected → MAXIMUM DEPTH (100 chunks, refine mode, ALL synthesis nodes)
+            # All documents / category filter → standard search (40 chunks, compact mode)
+            is_single_document_query = bool(document_filter) and not category_filter and not project_filter
+            
+            if is_single_document_query:
+                retrieval_top_k = 100  # MAXIMUM chunks for atomic-level analysis
+                response_mode = "refine"  # Iterative refinement for comprehensive answers
+                logger.info(f"   📖 DEEP SINGLE DOCUMENT MODE: 100 chunks + refine + atomic detail")
+            else:
+                retrieval_top_k = 40  # Standard retrieval for multi-doc
+                response_mode = "compact"
+                logger.info(f"   📚 Multi-document mode: 40 chunks + compact")
+            
             # Prepare semantic retriever
             if metadata_filter_list:
                 metadata_filters = MetadataFilters(filters=metadata_filter_list)
                 semantic_retriever = VectorIndexRetriever(
                     index=self.index,
-                    similarity_top_k=15,  # More candidates
+                    similarity_top_k=retrieval_top_k,
                     filters=metadata_filters
                 )
             else:
                 semantic_retriever = VectorIndexRetriever(
                     index=self.index,
-                    similarity_top_k=15
+                    similarity_top_k=retrieval_top_k
                 )
             
             # Step 1: Execute searches in parallel
@@ -509,7 +542,7 @@ class QueryEngine:
             with ThreadPoolExecutor(max_workers=3) as executor:
                 # Submit parallel tasks
                 future_semantic = executor.submit(semantic_retriever.retrieve, query_to_use)
-                future_bm25 = executor.submit(self.bm25_searcher.search, query_to_use, 15)
+                future_bm25 = executor.submit(self.bm25_searcher.search, query_to_use, 100)  # GEÇİCİ: MAKSIMUM chunk
                 future_graph = None
                 if self.graph_retriever and self.graph_retriever.enabled:
                     future_graph = executor.submit(
@@ -543,10 +576,31 @@ class QueryEngine:
                 query=query_to_use
             )
             
+            # Step 2.5: Apply bullet feedback penalties to irrelevant chunks
+            # GEÇİCİ: Penalty sistemi devre dışı - tüm chunk'ları göster
+            # if self.bullet_feedback_manager:
+            #     blended_nodes = self._apply_bullet_feedback_penalties(
+            #         nodes=blended_nodes,
+            #         query=question
+            #     )
+            
             # Step 5: Create query engine with blended results
+            # Adjust system prompt based on single vs multi-document query
+            system_prompt = create_system_prompt(single_document=is_single_document_query)
+            
+            # Create custom LLM with appropriate prompt
+            from llama_index.llms.deepseek import DeepSeek
+            custom_llm = DeepSeek(
+                model=self.settings.llm_model,
+                temperature=self.settings.llm_temperature,
+                api_key=self.settings.deepseek_api_key,
+                system_prompt=system_prompt
+            )
+            
             response_synthesizer = get_response_synthesizer(
-                response_mode="compact",
-                structured_answer_filtering=False
+                response_mode=response_mode,  # "refine" for single doc, "compact" otherwise
+                structured_answer_filtering=False,
+                llm=custom_llm
             )
             
             # Create custom retriever from blended nodes
@@ -554,9 +608,14 @@ class QueryEngine:
             query_bundle = QueryBundle(query_str=query_to_use)
             
             # Get LLM response with blended context
+            # GEÇİCİ: Tüm bulunan chunk'ları kullan - LİMİT YOK!
+            # Single doc: BÜTÜN blended nodes (limit yok!)
+            # Multi doc: use top 30 with compact mode
+            nodes_for_synthesis = blended_nodes if is_single_document_query else blended_nodes[:30]
+            
             response = response_synthesizer.synthesize(
                 query=query_bundle,
-                nodes=blended_nodes[:10]  # Top 10 after blending
+                nodes=nodes_for_synthesis
             )
             
             # Debug log
@@ -566,6 +625,48 @@ class QueryEngine:
             
             # Prepare result
             answer_text = str(response).strip()
+            
+            # === VALIDATION: Prevent hallucination and ensure quality ===
+            # TEMPORARILY DISABLED for testing - re-enable after tuning thresholds
+            validation_metadata = {}
+            
+            # if self.response_validator and blended_nodes:
+            #     logger.info("🔍 Validating response quality...")
+            #     validation = self.response_validator.validate_response(answer_text, blended_nodes)
+            #     
+            #     # Log validation results
+            #     logger.info(f"   Confidence: {validation['confidence']:.1%}")
+            #     logger.info(f"   Citation Coverage: {validation['citation_coverage']:.1%}")
+            #     logger.info(f"   Hallucination Score: {validation['hallucination_score']:.1%}")
+            #     
+            #     if validation['warnings']:
+            #         for warning in validation['warnings']:
+            #             logger.warning(f"   ⚠️ {warning}")
+            #     
+            #     # If confidence is too low, return "not found" message
+            #     # Lower threshold (0.35 instead of 0.5) to be less strict
+            #     if validation['confidence'] < 0.35:
+            #         answer_text = (
+            #             f"⚠️ **Yetersiz Bilgi Bulundu**\n\n"
+            #             f"Bu konuda güvenilir bilgi bulunamadı. Güven skoru: {validation['confidence']:.0%}\n\n"
+            #             f"## Öneriler:\n\n"
+            #             f"1. Soruyu daha spesifik hale getirin\n"
+            #             f"2. Farklı anahtar kelimeler kullanın\n"
+            #             f"3. İlgili doküman seçili mi kontrol edin"
+            #         )
+            #         validation['low_confidence_fallback'] = True
+            #     
+            #     # Add validation metadata
+            #     validation_metadata = {
+            #         'validation': validation,
+            #         'quality_score': (
+            #             validation['confidence'] * 0.4 +
+            #             validation['citation_coverage'] * 0.3 +
+            #             (1 - validation['hallucination_score']) * 0.3
+            #         )
+            #     }
+            # else:
+            #     validation_metadata = {}
             
             # Fallback if empty
             if not answer_text:
@@ -585,7 +686,8 @@ class QueryEngine:
                         "bm25_nodes": len(bm25_results),
                         "blended_nodes": len(blended_nodes)
                     },
-                    "graph_info": graph_info if graph_info else None
+                    "graph_info": graph_info if graph_info else None,
+                    **validation_metadata  # Add validation results
                 }
             }
             
@@ -754,7 +856,7 @@ class QueryEngine:
                 fused_results = self.hybrid_engine.adaptive_search(
                     query=expanded_query,
                     query_analysis=query_analysis,
-                    top_k=15
+                    top_k=40  # GEÇİCİ: Daha fazla sonuç
                 )
                 
                 if fused_results:
@@ -1079,18 +1181,50 @@ class QueryEngine:
             }
     
     def get_cache_stats(self) -> Dict:
-        """Get semantic cache statistics"""
+        """Get combined cache statistics"""
+        stats = {"total_entries": 0, "cache_hits": 0, "hit_rate_percent": 0}
+        
+        # Semantic cache stats
         if self.cache:
-            return self.cache.get_stats()
-        return {"error": "Cache not enabled"}
+            semantic_stats = self.cache.get_stats()
+            stats["semantic_cache"] = semantic_stats
+            stats["total_entries"] += semantic_stats.get("total_entries", 0)
+            stats["cache_hits"] += semantic_stats.get("hits", 0)
+        
+        # Response cache stats
+        if self.response_cache:
+            response_stats = self.response_cache.get_statistics()
+            stats["response_cache"] = response_stats
+            stats["total_entries"] += response_stats.get("total_entries", 0)
+            stats["cache_hits"] += response_stats.get("total_hits", 0)
+        
+        # Calculate combined hit rate
+        total_queries = stats.get("cache_hits", 0) + stats.get("total_entries", 0)
+        if total_queries > 0:
+            stats["hit_rate_percent"] = (stats["cache_hits"] / total_queries) * 100
+        
+        return stats
     
     def clear_cache(self):
-        """Clear semantic cache"""
+        """Clear ALL caches (semantic cache + response cache)"""
+        cleared_count = 0
+        
+        # Clear semantic cache
         if self.cache:
             self.cache.clear()
-            logger.info("🗑️ Cache cleared successfully")
+            logger.info("🗑️ Semantic cache cleared")
+            cleared_count += 1
+        
+        # Clear response cache
+        if self.response_cache:
+            deleted = self.response_cache.clear_all()
+            logger.info(f"🗑️ Response cache cleared ({deleted} entries)")
+            cleared_count += 1
+        
+        if cleared_count == 0:
+            logger.warning("No cache enabled to clear")
         else:
-            logger.warning("Cache not enabled")
+            logger.success(f"✅ All caches cleared ({cleared_count} cache systems)")
     
     def cleanup_cache(self):
         """Cleanup expired cache entries"""
@@ -1101,7 +1235,8 @@ class QueryEngine:
         return 0
     
     def add_feedback(self, query: str, response: str, feedback_type: str, 
-                    sources: List[Dict], comment: Optional[str] = None) -> int:
+                    sources: List[Dict], comment: Optional[str] = None, 
+                    auto_learn: bool = True) -> int:
         """
         Add user feedback for active learning
         
@@ -1111,21 +1246,160 @@ class QueryEngine:
             feedback_type: 'positive' or 'negative'
             sources: List of source documents
             comment: Optional user comment
+            auto_learn: Automatically trigger learning from positive feedback
             
         Returns:
             Feedback ID
         """
-        return self.feedback_manager.add_feedback(
+        feedback_id = self.feedback_manager.add_feedback(
             query=query,
             response=response,
             feedback_type=feedback_type,
             sources=sources,
             comment=comment
         )
+        
+        # Auto-learn from positive feedback
+        if auto_learn and feedback_type == 'positive' and self.feedback_learner:
+            try:
+                # Trigger learning in background
+                logger.info("🧠 Triggering feedback learning...")
+                stats = self.feedback_learner.learn_from_feedback(time_window_days=7)
+                logger.success(f"✅ Learning complete: {stats['new_relationships']} new relationships")
+            except Exception as e:
+                logger.warning(f"⚠️ Auto-learning failed: {e}")
+        
+        return feedback_id
+    
+    def trigger_learning(self, time_window_days: Optional[int] = None) -> Dict:
+        """
+        Manually trigger learning process from feedback
+        
+        Args:
+            time_window_days: Only learn from last N days (None = all time)
+            
+        Returns:
+            Learning statistics
+        """
+        if not self.feedback_learner:
+            logger.warning("⚠️ Feedback learner not available")
+            return {}
+        
+        logger.info("🧠 Starting manual feedback learning...")
+        stats = self.feedback_learner.learn_from_feedback(time_window_days)
+        logger.success(f"✅ Learning complete!")
+        logger.info(f"   📊 New relationships: {stats['new_relationships']}")
+        logger.info(f"   ⬆️ Strengthened relationships: {stats['strengthened_relationships']}")
+        logger.info(f"   🔍 Patterns discovered: {stats['discovered_patterns']}")
+        
+        return stats
+    
+    def get_learning_statistics(self) -> Dict:
+        """Get statistics about learned relationships"""
+        if not self.feedback_learner:
+            return {}
+        return self.feedback_learner.get_learning_statistics()
+    
+    def prune_weak_relationships(self, min_weight: float = 0.3) -> int:
+        """
+        Remove weak learned relationships
+        
+        Args:
+            min_weight: Minimum weight threshold
+            
+        Returns:
+            Number of relationships removed
+        """
+        if not self.feedback_learner:
+            return 0
+        return self.feedback_learner.prune_weak_relationships(min_weight)
     
     def get_feedback_stats(self) -> Dict:
         """Get feedback statistics"""
         return self.feedback_manager.get_statistics()
+    
+    def _apply_bullet_feedback_penalties(self, nodes: List, query: str) -> List:
+        """
+        Apply penalties to chunks that were marked as irrelevant in bullet feedback
+        
+        Args:
+            nodes: Retrieved nodes with scores
+            query: User query
+            
+        Returns:
+            Filtered and re-scored nodes
+        """
+        try:
+            # Get irrelevant chunks for this query pattern
+            irrelevant_chunks = self.bullet_feedback_manager.get_irrelevant_chunks(
+                query=query,
+                threshold=0.3  # Chunks with < 30% relevance score
+            )
+            
+            if not irrelevant_chunks:
+                return nodes  # No penalties to apply
+            
+            logger.info(f"🚫 Applying penalties to {len(irrelevant_chunks)} irrelevant chunks")
+            
+            # Apply penalties and filter
+            penalized_nodes = []
+            removed_count = 0
+            
+            for node in nodes:
+                # Extract source reference from node metadata
+                metadata = node.metadata if hasattr(node, 'metadata') else {}
+                file_name = metadata.get('file_name', '')
+                section = metadata.get('section', '')
+                
+                # Create source ref (e.g., "IS3218#6.5.1.13")
+                source_ref = self._create_source_ref(file_name, section)
+                
+                # Check if this chunk is irrelevant
+                if source_ref in irrelevant_chunks:
+                    # Apply 50% penalty
+                    original_score = node.score if hasattr(node, 'score') else 0.5
+                    node.score = original_score * 0.5
+                    
+                    # Remove if score too low after penalty
+                    if node.score < 0.2:
+                        removed_count += 1
+                        logger.debug(f"  ❌ Removed: {source_ref} (score: {original_score:.3f} → {node.score:.3f})")
+                        continue  # Skip this node
+                    
+                    logger.debug(f"  ⚠️ Penalized: {source_ref} (score: {original_score:.3f} → {node.score:.3f})")
+                
+                penalized_nodes.append(node)
+            
+            if removed_count > 0:
+                logger.info(f"  ❌ Removed {removed_count} low-score irrelevant chunks")
+            
+            # Re-sort by score
+            penalized_nodes.sort(key=lambda x: x.score if hasattr(x, 'score') else 0, reverse=True)
+            
+            return penalized_nodes
+            
+        except Exception as e:
+            logger.warning(f"⚠️ Failed to apply bullet feedback penalties: {e}")
+            return nodes  # Return original on error
+    
+    def _create_source_ref(self, file_name: str, section: str) -> str:
+        """
+        Create source reference from file_name and section
+        
+        Examples:
+            ("IS3218.pdf", "6.5.1.13") → "IS3218#6.5.1.13"
+            ("NEK 606.pdf", "Table 2") → "NEK606#Table2"
+        """
+        # Clean file name (remove extension, spaces)
+        clean_name = file_name.replace('.pdf', '').replace('.txt', '').replace(' ', '')
+        
+        # Clean section (remove spaces)
+        clean_section = section.replace(' ', '') if section else ''
+        
+        if clean_section:
+            return f"{clean_name}#{clean_section}"
+        else:
+            return clean_name
     
     def get_recent_feedback(self, limit: int = 10) -> List[Dict]:
         """Get recent feedback entries"""
@@ -1503,6 +1777,212 @@ class QueryEngine:
                 "error": str(e),
                 "references": {"outgoing": [], "incoming": []}
             }
+
+    def get_all_document_names(self) -> List[str]:
+        """
+        Get list of all unique document names in the database
+        
+        Returns:
+            List of document names
+        """
+        if not hasattr(self, 'client') or not self.client:
+            return []
+        
+        try:
+            collection_name = self.settings.get_collection_name()
+            documents = set()
+            offset = None
+            
+            while True:
+                points, next_offset = self.client.scroll(
+                    collection_name=collection_name,
+                    limit=100,
+                    offset=offset,
+                    with_payload=['document_name', 'file_name'],
+                    with_vectors=False
+                )
+                
+                for point in points:
+                    payload = point.payload or {}
+                    doc_name = payload.get('document_name') or payload.get('file_name')
+                    if doc_name:
+                        documents.add(doc_name)
+                
+                offset = next_offset
+                if offset is None:
+                    break
+            
+            return sorted(list(documents))
+        except Exception as e:
+            logger.error(f"Failed to get document names: {e}")
+            return []
+
+    def query_all_documents(
+        self,
+        question: str,
+        min_relevance_score: float = 0.3,
+        chunks_per_doc: int = 10
+    ) -> List[Dict]:
+        """
+        Query each document separately and return per-document answers
+        
+        This method searches each document independently (as if only that 
+        document was selected) and generates a separate answer for each
+        document that has relevant content.
+        
+        Args:
+            question: User's question
+            min_relevance_score: Minimum relevance score to consider a document relevant
+            chunks_per_doc: Number of chunks to retrieve per document
+            
+        Returns:
+            List of results, one per document that has relevant content:
+            [
+                {
+                    "document_name": str,
+                    "answer": str,
+                    "sources": List[Dict],
+                    "relevance_score": float,
+                    "chunk_count": int
+                },
+                ...
+            ]
+        """
+        from concurrent.futures import ThreadPoolExecutor, as_completed
+        from llama_index.core.vector_stores import MetadataFilters, MetadataFilter, FilterOperator
+        
+        logger.info(f"🔍 Multi-Document Query: '{question}'")
+        
+        # Get all document names
+        all_documents = self.get_all_document_names()
+        
+        if not all_documents:
+            logger.warning("No documents found in database")
+            return []
+        
+        logger.info(f"   📚 Found {len(all_documents)} documents to search")
+        
+        # Analyze query once (reuse for all documents)
+        query_analysis = self.query_analyzer.analyze(question)
+        
+        # Expand query
+        if self.use_expansion and self.expander:
+            expanded_query = self.expander.expand(question)
+        else:
+            expanded_query = self._expand_query(question)
+        
+        def query_single_document(doc_name: str) -> Optional[Dict]:
+            """Query a single document and generate answer"""
+            try:
+                # Create filter for this specific document
+                # Use document_name for filtering (not file_name which has .pdf extension)
+                metadata_filters = MetadataFilters(filters=[
+                    MetadataFilter(key="document_name", value=doc_name, operator=FilterOperator.EQ)
+                ])
+                
+                # Create retriever with document filter
+                retriever = VectorIndexRetriever(
+                    index=self.index,
+                    similarity_top_k=chunks_per_doc,
+                    filters=metadata_filters
+                )
+                
+                # Retrieve nodes for this document
+                nodes = retriever.retrieve(expanded_query)
+                
+                if not nodes:
+                    return None
+                
+                # Check relevance score
+                max_score = max(n.score for n in nodes) if nodes else 0
+                if max_score < min_relevance_score:
+                    return None
+                
+                # Generate answer using LLM
+                response_synthesizer = get_response_synthesizer(
+                    response_mode="compact",
+                    structured_answer_filtering=False
+                )
+                
+                from llama_index.core.schema import QueryBundle
+                query_bundle = QueryBundle(query_str=expanded_query)
+                
+                response = response_synthesizer.synthesize(
+                    query=query_bundle,
+                    nodes=nodes[:chunks_per_doc]
+                )
+                
+                answer_text = str(response).strip()
+                
+                # Skip if empty or non-informative answer
+                if not answer_text or len(answer_text) < 20:
+                    return None
+                
+                # Check for "no information" type responses
+                no_info_phrases = [
+                    "does not contain",
+                    "no information",
+                    "not mentioned",
+                    "cannot find",
+                    "not found",
+                    "no relevant",
+                    "doesn't provide",
+                    "not available"
+                ]
+                if any(phrase in answer_text.lower() for phrase in no_info_phrases):
+                    return None
+                
+                # Prepare sources
+                sources = []
+                for idx, node in enumerate(nodes[:5], 1):
+                    metadata = node.metadata
+                    sources.append({
+                        "rank": idx,
+                        "document": metadata.get('document_name', doc_name),
+                        "page": metadata.get('page_label', metadata.get('page_number', 'N/A')),
+                        "section": metadata.get('section_title', ''),
+                        "text": node.text[:300] + "..." if len(node.text) > 300 else node.text,
+                        "score": node.score
+                    })
+                
+                return {
+                    "document_name": doc_name,
+                    "answer": answer_text,
+                    "sources": sources,
+                    "relevance_score": max_score,
+                    "chunk_count": len(nodes)
+                }
+                
+            except Exception as e:
+                logger.warning(f"Error querying document {doc_name}: {e}")
+                return None
+        
+        # Query all documents in parallel
+        results = []
+        with ThreadPoolExecutor(max_workers=4) as executor:
+            future_to_doc = {
+                executor.submit(query_single_document, doc): doc 
+                for doc in all_documents
+            }
+            
+            for future in as_completed(future_to_doc):
+                doc_name = future_to_doc[future]
+                try:
+                    result = future.result()
+                    if result:
+                        results.append(result)
+                        logger.info(f"   ✅ {doc_name}: Found relevant content (score: {result['relevance_score']:.2f})")
+                    else:
+                        logger.debug(f"   ⏭️ {doc_name}: No relevant content")
+                except Exception as e:
+                    logger.warning(f"   ❌ {doc_name}: Error - {e}")
+        
+        # Sort by relevance score (highest first)
+        results.sort(key=lambda x: x['relevance_score'], reverse=True)
+        
+        logger.success(f"✅ Multi-document query complete: {len(results)}/{len(all_documents)} documents had relevant content")
+        
+        return results
 
 
 def main():

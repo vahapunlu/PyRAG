@@ -19,16 +19,18 @@ class BM25Searcher:
     semantic search for queries requiring exact term matching.
     """
     
-    def __init__(self, k1: float = 1.5, b: float = 0.75):
+    def __init__(self, k1: float = 1.5, b: float = 0.75, use_ngrams: bool = True):
         """
         Initialize BM25 searcher
         
         Args:
             k1: Term frequency saturation parameter (default: 1.5)
             b: Length normalization parameter (default: 0.75)
+            use_ngrams: Use bigrams and trigrams for multi-word terms (default: True)
         """
         self.k1 = k1
         self.b = b
+        self.use_ngrams = use_ngrams
         self.documents = []
         self.doc_lengths = []
         self.avg_doc_length = 0
@@ -36,7 +38,28 @@ class BM25Searcher:
         self.idf_cache = {}
         self.total_docs = 0
         
-        logger.info(f"✅ BM25 Searcher initialized (k1={k1}, b={b})")
+        # MEP technical terms dictionary (Turkish-English mappings)
+        self.mep_terms = {
+            'kablo tavası': 'cable_tray',
+            'yangın dedektörü': 'fire_detector',
+            'duman dedektörü': 'smoke_detector',
+            'ısı dedektörü': 'heat_detector',
+            'acil aydınlatma': 'emergency_lighting',
+            'paratoner sistemi': 'lightning_protection',
+            'topraklama sistemi': 'grounding_system',
+            'güç kaynağı': 'power_supply',
+            'sigorta kutusu': 'fuse_box',
+            'elektrik panosu': 'electrical_panel',
+            'koruma rölesi': 'protection_relay',
+            'devre kesici': 'circuit_breaker',
+            'kaçak akım': 'leakage_current',
+            'kısa devre': 'short_circuit',
+            'toprak kaçağı': 'earth_fault',
+            'faz dengesizliği': 'phase_imbalance'
+        }
+        
+        logger.info(f"✅ BM25 Searcher initialized (k1={k1}, b={b}, ngrams={use_ngrams})")
+        logger.info(f"   📚 MEP terms dictionary: {len(self.mep_terms)} technical terms")
     
     def index_documents(self, documents: List[Dict[str, Any]]):
         """
@@ -74,20 +97,58 @@ class BM25Searcher:
     
     def _tokenize(self, text: str) -> List[str]:
         """
-        Simple tokenization: lowercase + split on non-alphanumeric
+        Advanced tokenization with n-grams and MEP term preservation
         
         Args:
             text: Input text
             
         Returns:
-            List of tokens
+            List of tokens including unigrams, bigrams, and technical terms
         """
         import re
-        # Lowercase and keep only alphanumeric + Turkish chars
-        text = text.lower()
-        # Split on whitespace and punctuation, keep Turkish characters
-        tokens = re.findall(r'[a-z0-9çğıöşüâîû]+', text)
-        return tokens
+        
+        # Lowercase
+        text_lower = text.lower()
+        
+        # First, extract and replace MEP technical terms with single tokens
+        protected_terms = {}
+        term_counter = 0
+        
+        for term, token in self.mep_terms.items():
+            if term in text_lower:
+                # Replace multi-word term with single token
+                placeholder = f"__{token}__"
+                text_lower = text_lower.replace(term, placeholder)
+                protected_terms[placeholder] = token
+                term_counter += 1
+        
+        # Basic tokenization: split on whitespace and punctuation
+        unigrams = re.findall(r'[a-z0-9çğıöşüâîû_]+', text_lower)
+        
+        # Restore protected terms as single tokens
+        final_tokens = []
+        for token in unigrams:
+            if token in protected_terms:
+                final_tokens.append(protected_terms[token])
+            else:
+                final_tokens.append(token)
+        
+        # Add bigrams and trigrams if enabled
+        if self.use_ngrams and len(final_tokens) > 1:
+            # Add bigrams (2-word phrases)
+            for i in range(len(final_tokens) - 1):
+                bigram = f"{final_tokens[i]}_{final_tokens[i+1]}"
+                final_tokens.append(bigram)
+            
+            # Add trigrams (3-word phrases) for better phrase matching
+            if len(final_tokens) > 2:
+                for i in range(len(final_tokens) - 2):
+                    # Avoid adding n-grams of already protected terms
+                    if not any(t.startswith('__') for t in [final_tokens[i], final_tokens[i+1], final_tokens[i+2]]):
+                        trigram = f"{final_tokens[i]}_{final_tokens[i+1]}_{final_tokens[i+2]}"
+                        final_tokens.append(trigram)
+        
+        return final_tokens
     
     def _calculate_idf(self, term: str) -> float:
         """

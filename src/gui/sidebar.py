@@ -160,18 +160,6 @@ class Sidebar:
         ).grid(row=row, column=0, padx=20, pady=SPACING['small'], sticky="ew")
         row += 1
         
-        ctk.CTkButton(
-            self.frame,
-            text="📤 Export Results",
-            command=self.callbacks.get('export_results'),
-            height=BUTTON_HEIGHTS['secondary'],
-            font=ctk.CTkFont(size=FONT_SIZES['small']),
-            fg_color="transparent",
-            border_width=2,
-            corner_radius=8
-        ).grid(row=row, column=0, padx=20, pady=SPACING['small'], sticky="ew")
-        row += 1
-        
         # SECTION: ADVANCED FEATURES
         ctk.CTkLabel(
             self.frame,

@@ -255,31 +255,44 @@ class PyRAGApp(ctk.CTk):
             if active_filters.get('project'):
                 filter_dict['project'] = active_filters['project']
             
-            # Status: Searching
-            self.after(0, self._update_status, "🔍 Searching documents...")
+            # Check if NO filters are applied - use multi-document query
+            no_filters_applied = not any(filter_dict.values())
             
-            # Status: Collecting context
-            self.after(500, self._update_status, "📚 Collecting relevant context...")
-            
-            # Get response
-            response = self.query_engine.query(question, filters=filter_dict)
-            
-            # Status: Generating
-            self.after(0, self._update_status, "🧠 Generating answer...")
-            
-            # Extract query analysis from metadata
-            query_analysis = None
-            if 'metadata' in response:
-                metadata = response['metadata']
-                query_analysis = {
-                    'intent': metadata.get('query_intent', 'general'),
-                    'weights': metadata.get('query_weights', {}),
-                    'retrieval_info': metadata.get('retrieval_info', {}),
-                    'graph_info': metadata.get('graph_info')
-                }
-            
-            # Display response on main thread
-            self.after(0, self._display_response, response, query_analysis)
+            if no_filters_applied:
+                # Multi-document query mode
+                self.after(0, self._update_status, "🔍 Searching all documents...")
+                self.after(500, self._update_status, "📚 Querying each document separately...")
+                
+                # Get per-document results
+                results = self.query_engine.query_all_documents(question)
+                
+                self.after(0, self._update_status, "🧠 Preparing results...")
+                
+                # Display multi-document response on main thread
+                self.after(0, self._display_multi_document_response, question, results)
+            else:
+                # Single document/filtered query mode (existing behavior)
+                self.after(0, self._update_status, "🔍 Searching documents...")
+                self.after(500, self._update_status, "📚 Collecting relevant context...")
+                
+                # Get response
+                response = self.query_engine.query(question, filters=filter_dict)
+                
+                self.after(0, self._update_status, "🧠 Generating answer...")
+                
+                # Extract query analysis from metadata
+                query_analysis = None
+                if 'metadata' in response:
+                    metadata = response['metadata']
+                    query_analysis = {
+                        'intent': metadata.get('query_intent', 'general'),
+                        'weights': metadata.get('query_weights', {}),
+                        'retrieval_info': metadata.get('retrieval_info', {}),
+                        'graph_info': metadata.get('graph_info')
+                    }
+                
+                # Display response on main thread
+                self.after(0, self._display_response, response, query_analysis)
             
         except Exception as e:
             error_msg = f"❌ Error: {str(e)}"
@@ -428,51 +441,10 @@ class PyRAGApp(ctk.CTk):
             self.chat.append_message(error_msg, "system")
             return
         
-        # Display normal response
+        # Display normal response with styled Markdown rendering
         if 'response' in response:
-            self.chat.append_message(response['response'], "assistant")
-            
-            # Calculate and display confidence score
-            sources = response.get('sources', [])
-            if sources:
-                scores = [s.get('score', 0) for s in sources[:3] if s.get('score')]
-                if scores:
-                    avg_score = sum(scores) / len(scores)
-                    confidence_text = self._format_confidence(avg_score, len(sources))
-                    self.chat.append_message(confidence_text, "system")
-        
-                sources_text = "\n📚 Sources:\n"
-                for i, source in enumerate(response['sources'][:3], 1):
-                    doc_name = source.get('document', 'Unknown')
-                    page = source.get('page', 'N/A')
-                    standard_no = source.get('standard_no', '')
-                    date = source.get('date', '')
-                    # Use actual text snippet, not description metadata
-                    text_snippet = source.get('text', '')
-                    
-                    # Build source line with metadata
-                    source_line = f"   {i}. {doc_name}"
-                    
-                    # Add standard_no if available
-                    if standard_no:
-                        source_line += f" | {standard_no}"
-                    
-                    # Add date if available
-                    if date:
-                        source_line += f" | {date}"
-                    
-                    # Add page
-                    source_line += f" (Page {page})"
-                    
-                    sources_text += source_line + "\n"
-                    
-                    # Add text snippet on separate line (first 150 chars)
-                    if text_snippet:
-                        snippet = text_snippet[:150].replace('\n', ' ').strip()
-                        if snippet:
-                            sources_text += f"      💬 \"{snippet}...\"\n"
-                
-                self.chat.append_message(sources_text, "source")
+            # Use styled message for Markdown rendering
+            self.chat.append_styled_message(response['response'], "assistant")
             
             # Generate and display follow-up suggestions
             follow_ups = self._generate_follow_ups(response, query_analysis)
@@ -481,34 +453,71 @@ class PyRAGApp(ctk.CTk):
         else:
             # Fallback if response structure is unexpected
             self.chat.append_message("⚠️ Received unexpected response format.", "system")
-    
-    def _format_confidence(self, score, source_count):
-        """Format confidence score display
+
+    def _display_multi_document_response(self, question: str, results: list):
+        """Display per-document query results
         
         Args:
-            score: Average similarity score (0-1)
-            source_count: Number of sources found
+            question: Original user question
+            results: List of per-document results from query_all_documents()
         """
-        percentage = int(score * 100)
+        # Clear status message first
+        self.chat.clear_status_message()
         
-        if percentage >= 85:
-            emoji = "🎯"
-            level = "High"
-            color_hint = ""
-        elif percentage >= 70:
-            emoji = "✅"
-            level = "Good"
-            color_hint = ""
-        elif percentage >= 50:
-            emoji = "⚠️"
-            level = "Moderate"
-            color_hint = " - verify manually"
-        else:
-            emoji = "❗"
-            level = "Low"
-            color_hint = " - limited sources found"
+        if not results:
+            self.chat.append_message(
+                "⚠️ No relevant content found in any document for this query.", 
+                "system"
+            )
+            return
         
-        return f"\n{emoji} Confidence: {percentage}% ({level}{color_hint}) | Based on {source_count} source(s)"
+        # Summary header
+        doc_count = len(results)
+        header = f"\n📊 Found relevant content in {doc_count} document(s):\n"
+        self.chat.append_message(header, "system")
+        
+        # Display each document's result
+        for idx, result in enumerate(results, 1):
+            doc_name = result.get('document_name', 'Unknown')
+            answer = result.get('answer', '')
+            sources = result.get('sources', [])
+            relevance = result.get('relevance_score', 0)
+            
+            # Document header with separator
+            separator = "━" * 60
+            doc_header = f"\n{separator}\n📄 {doc_name}\n{separator}"
+            self.chat.append_message(doc_header, "system")
+            
+            # Document answer with styled Markdown rendering
+            self.chat.append_styled_message(answer, "assistant")
+            
+            # Sources for this document
+            if sources:
+                sources_text = "\n📚 Sources:\n"
+                for i, source in enumerate(sources[:3], 1):
+                    page = source.get('page', 'N/A')
+                    section = source.get('section', '')
+                    score = source.get('score', 0)
+                    
+                    source_line = f"   {i}. Page {page}"
+                    if section:
+                        source_line += f" - {section[:50]}"
+                    source_line += f" (relevance: {score:.0%})"
+                    sources_text += source_line + "\n"
+                
+                self.chat.append_message(sources_text, "source")
+        
+        # Store last results for feedback/export
+        self.chat.last_query = question
+        self.chat.last_response = f"Multi-document results ({doc_count} documents)"
+        self.chat.last_sources = []
+        for r in results:
+            self.chat.last_sources.extend(r.get('sources', []))
+        
+        # Final summary
+        final_separator = "━" * 60
+        summary = f"\n{final_separator}\n✅ Query complete. Searched all {doc_count} document(s) with relevant content."
+        self.chat.append_message(summary, "system")
     
     def _generate_follow_ups(self, response, query_analysis):
         """Generate follow-up question suggestions
@@ -852,7 +861,7 @@ class PyRAGApp(ctk.CTk):
             self.chat.append_message("\n🗑️  Chat history cleared", "system")
     
     def clear_cache(self):
-        """Clear semantic cache"""
+        """Clear all caches (semantic + response)"""
         if not self.query_engine:
             messagebox.showwarning("Warning", "System not initialized yet")
             return
@@ -862,22 +871,30 @@ class PyRAGApp(ctk.CTk):
         total_entries = cache_stats.get('total_entries', 0)
         
         if total_entries == 0:
-            messagebox.showinfo("Cache Empty", "Cache is already empty. Nothing to clear.")
+            messagebox.showinfo("Cache Empty", "All caches are already empty. Nothing to clear.")
             return
         
+        # Build detailed message
+        details = []
+        if 'semantic_cache' in cache_stats:
+            sc = cache_stats['semantic_cache']
+            details.append(f"• Semantic Cache: {sc.get('total_entries', 0)} entries")
+        if 'response_cache' in cache_stats:
+            rc = cache_stats['response_cache']
+            details.append(f"• Response Cache: {rc.get('total_entries', 0)} entries")
+        
         result = messagebox.askyesno(
-            "Clear Cache",
-            f"Are you sure you want to clear the semantic cache?\n\n"
-            f"• Cached queries: {total_entries}\n"
-            f"• Cache hits: {cache_stats.get('cache_hits', 0)}\n"
-            f"• Hit rate: {cache_stats.get('hit_rate_percent', 0):.1f}%\n\n"
+            "Clear All Caches",
+            f"Are you sure you want to clear ALL caches?\n\n"
+            f"Total cached queries: {total_entries}\n"
+            + "\n".join(details) + "\n\n"
             f"This will force all future queries to regenerate answers."
         )
         
         if result:
             self.query_engine.clear_cache()
-            self.chat.append_message("\n⚡ Semantic cache cleared successfully", "system")
-            messagebox.showinfo("Success", f"Cache cleared!\n\n{total_entries} cached queries removed.")
+            self.chat.append_message("\n⚡ All caches cleared successfully (semantic + response)", "system")
+            messagebox.showinfo("Success", f"All caches cleared!\n\n{total_entries} cached queries removed.")
     
     def show_history(self):
         """Show query history dialog"""

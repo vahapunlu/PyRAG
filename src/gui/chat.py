@@ -4,9 +4,14 @@ Chat Component for PyRAG GUI
 Handles chat display, message rendering, and quick filters.
 """
 
+import tkinter as tk
 import customtkinter as ctk
 from loguru import logger
 from .constants import *
+import uuid
+
+# HTML rendering disabled - using enhanced text tags with embedded table widgets
+HTML_RENDERING_AVAILABLE = False
 
 
 class ChatArea:
@@ -411,12 +416,14 @@ class ChatArea:
             self._status_start_index = None
     
     def _create_chat_display(self):
-        """Create scrollable chat display"""
+        """Create scrollable chat display with styled text tags"""
         chat_frame = ctk.CTkFrame(self.main_frame)
         chat_frame.grid(row=2, column=0, sticky="nsew", padx=20, pady=(10, 10))
         chat_frame.grid_columnconfigure(0, weight=1)
         chat_frame.grid_rowconfigure(0, weight=1)
         
+        # Use text-based display with enhanced styling
+        self._use_html_rendering = False
         self.chat_display = ctk.CTkTextbox(
             chat_frame,
             font=ctk.CTkFont(size=FONT_SIZES['normal']),
@@ -424,6 +431,397 @@ class ChatArea:
             state="disabled"
         )
         self.chat_display.grid(row=0, column=0, sticky="nsew", padx=10, pady=10)
+        
+        # Configure text tags for styled rendering
+        self._configure_text_tags()
+    
+    def _configure_text_tags(self):
+        """Configure text tags for Markdown-style rendering"""
+        # Get internal textbox widget
+        textbox = self.chat_display._textbox
+        
+        # Header styles - Blue tones for hierarchy
+        textbox.tag_configure("h1", font=ctk.CTkFont(size=22, weight="bold"), foreground="#60a5fa", spacing3=10)
+        textbox.tag_configure("h2", font=ctk.CTkFont(size=18, weight="bold"), foreground="#3b82f6", spacing3=8)
+        textbox.tag_configure("h3", font=ctk.CTkFont(size=15, weight="bold"), foreground="#2563eb", spacing3=6)
+        
+        # Emphasis styles
+        textbox.tag_configure("bold", font=ctk.CTkFont(weight="bold"), foreground="#ffffff")
+        textbox.tag_configure("italic", font=ctk.CTkFont(slant="italic"))
+        textbox.tag_configure("code", font=ctk.CTkFont(family="Consolas", size=12), foreground="#e74c3c", background="#2c2c2c")
+        
+        # List styles
+        textbox.tag_configure("bullet", foreground="#9b59b6", lmargin1=20, lmargin2=35)
+        textbox.tag_configure("numbered", foreground="#3498db", lmargin1=20, lmargin2=35)
+        
+        # Table styles
+        textbox.tag_configure("table_header", font=ctk.CTkFont(weight="bold"), foreground="#f39c12", background="#2c3e50")
+        textbox.tag_configure("table_row", foreground="#ecf0f1", background="#34495e")
+        textbox.tag_configure("table_separator", foreground="#7f8c8d")
+        
+        # Special content styles
+        textbox.tag_configure("source_ref", foreground="#95a5a6", font=ctk.CTkFont(size=11))
+        textbox.tag_configure("warning", foreground="#e74c3c", font=ctk.CTkFont(weight="bold"))
+        textbox.tag_configure("success", foreground="#27ae60", font=ctk.CTkFont(weight="bold"))
+        textbox.tag_configure("info", foreground="#3498db")
+        textbox.tag_configure("highlight", foreground="#f1c40f", background="#2c3e50")
+        
+        # Message type tags
+        textbox.tag_configure("user_tag", foreground="#e74c3c", font=ctk.CTkFont(size=14, weight="bold"))
+        textbox.tag_configure("assistant_tag", foreground="#27ae60", font=ctk.CTkFont(size=14, weight="bold"))
+        textbox.tag_configure("system_tag", foreground="#7f8c8d", font=ctk.CTkFont(size=12, slant="italic"))
+        textbox.tag_configure("source_tag", foreground="#9b59b6", font=ctk.CTkFont(size=11))
+        
+        # Document separator for multi-doc results
+        textbox.tag_configure("doc_separator", foreground="#3498db", font=ctk.CTkFont(size=13, weight="bold"), spacing1=15, spacing3=5)
+        textbox.tag_configure("doc_score", foreground="#f39c12", font=ctk.CTkFont(size=11))
+    
+    def _render_markdown(self, text):
+        """
+        Parse and render Markdown-formatted text with styled tags.
+        Returns a list of (text, tag) tuples for insertion.
+        Tables are marked with special 'TABLE' tag containing table data.
+        """
+        import re
+        
+        result = []
+        lines = text.split('\n')
+        in_table = False
+        table_data = []
+        
+        for line_idx, line in enumerate(lines):
+            # Table detection
+            if '|' in line and line.strip().startswith('|'):
+                cells = [c.strip() for c in line.strip().strip('|').split('|')]
+                
+                # Check if this is a separator line (---|---|---)
+                if all(set(c.strip()).issubset({'-', ':', ' '}) for c in cells if c.strip()):
+                    # Table separator line - skip
+                    continue
+                
+                if not in_table:
+                    in_table = True
+                    table_data = []
+                
+                table_data.append(cells)
+                
+                # Check if next line ends table
+                next_idx = line_idx + 1
+                if next_idx >= len(lines) or not ('|' in lines[next_idx] and lines[next_idx].strip().startswith('|')):
+                    # End of table - emit table data
+                    result.append((table_data, "TABLE"))
+                    in_table = False
+                    table_data = []
+                continue
+            else:
+                if in_table and table_data:
+                    result.append((table_data, "TABLE"))
+                in_table = False
+                table_data = []
+            
+            # Headers
+            if line.startswith('### '):
+                result.append((line[4:] + '\n', "h3"))
+                continue
+            elif line.startswith('## '):
+                result.append((line[3:] + '\n', "h2"))
+                continue
+            elif line.startswith('# '):
+                result.append((line[2:] + '\n', "h1"))
+                continue
+            
+            # Bullet points
+            bullet_match = re.match(r'^(\s*)[-*•]\s+(.+)$', line)
+            if bullet_match:
+                indent, content = bullet_match.groups()
+                # Store bullet as special tuple: (content, "BULLET")
+                result.append((content, "BULLET"))
+                continue
+            
+            # Numbered lists
+            num_match = re.match(r'^(\s*)(\d+)\.\s+(.+)$', line)
+            if num_match:
+                indent, num, content = num_match.groups()
+                formatted_parts = self._parse_inline_formatting(content)
+                result.append((f"  {num}. ", "numbered"))
+                result.extend(formatted_parts)
+                result.append(("\n", None))
+                continue
+            
+            # Source references (📚, 📄, Source:, etc.)
+            if any(marker in line for marker in ['📚', '📄', 'Source:', '[Source', '(Page', 'Reference:']):
+                result.append((line + '\n', "source_ref"))
+                continue
+            
+            # Warning/Important lines
+            if any(marker in line.lower() for marker in ['warning:', 'important:', 'note:', '⚠', '❗']):
+                result.append((line + '\n', "warning"))
+                continue
+            
+            # Success/Conclusion lines  
+            if any(marker in line.lower() for marker in ['✓', '✔', 'conclusion:', 'summary:']):
+                result.append((line + '\n', "success"))
+                continue
+            
+            # Regular text with inline formatting
+            if line.strip():
+                formatted_parts = self._parse_inline_formatting(line)
+                result.extend(formatted_parts)
+                result.append(("\n", None))
+            else:
+                result.append(("\n", None))
+        
+        return result
+    
+    def _parse_inline_formatting(self, text):
+        """Parse inline Markdown formatting (bold, italic, code)"""
+        import re
+        result = []
+        
+        # Pattern for **bold**, *italic*, `code`
+        pattern = r'(\*\*(.+?)\*\*|\*(.+?)\*|`(.+?)`)'
+        last_end = 0
+        
+        for match in re.finditer(pattern, text):
+            # Add text before match
+            if match.start() > last_end:
+                result.append((text[last_end:match.start()], None))
+            
+            full_match = match.group(0)
+            if full_match.startswith('**'):
+                result.append((match.group(2), "bold"))
+            elif full_match.startswith('`'):
+                result.append((match.group(4), "code"))
+            elif full_match.startswith('*'):
+                result.append((match.group(3), "italic"))
+            
+            last_end = match.end()
+        
+        # Add remaining text
+        if last_end < len(text):
+            result.append((text[last_end:], None))
+        
+        return result if result else [(text, None)]
+    
+    def append_styled_message(self, text, message_type="assistant"):
+        """
+        Append a message with styled Markdown rendering including embedded tables.
+        
+        Args:
+            text: Message text (can contain Markdown)
+            message_type: "user", "assistant", "system", "source"
+        """
+        self.chat_display.configure(state="normal")
+        textbox = self.chat_display._textbox
+        
+        if message_type == "user":
+            textbox.insert("end", "\n\n❓ YOU:\n", "user_tag")
+            textbox.insert("end", text + "\n")
+            self.last_query = text
+            self.feedback_frame.grid_remove()
+            
+        elif message_type == "assistant":
+            textbox.insert("end", "\n✅ ASSISTANT:\n", "assistant_tag")
+            
+            # Render with Markdown formatting including tables
+            formatted_parts = self._render_markdown(text)
+            for content, tag in formatted_parts:
+                if tag == "TABLE":
+                    # Insert embedded table widget
+                    self._insert_table_widget(textbox, content)
+                elif tag == "BULLET":
+                    # Insert styled bullet (without feedback buttons)
+                    self._insert_styled_bullet(textbox, content)
+                elif tag:
+                    textbox.insert("end", content, tag)
+                else:
+                    textbox.insert("end", content)
+            
+            self.last_response = text
+            if self.feedback_callback:
+                self.feedback_frame.grid()
+                
+        elif message_type == "system":
+            textbox.insert("end", text + "\n", "system_tag")
+            
+        elif message_type == "source":
+            textbox.insert("end", text + "\n", "source_tag")
+        
+        self.chat_display.configure(state="disabled")
+        self.chat_display.see("end")
+    
+    def _insert_table_widget(self, textbox, table_data):
+        """
+        Insert a styled table widget into the textbox.
+        
+        Args:
+            textbox: The text widget to insert into
+            table_data: List of rows, each row is a list of cell values
+        """
+        import tkinter as tk
+        
+        if not table_data:
+            return
+        
+        # Create table frame
+        table_frame = tk.Frame(textbox, bg='#1e3a5f', padx=5, pady=5)
+        
+        # Determine number of columns
+        num_cols = max(len(row) for row in table_data)
+        
+        # Style definitions
+        header_bg = '#2563eb'
+        header_fg = 'white'
+        row_bg_1 = '#2d3748'
+        row_bg_2 = '#374151'
+        row_fg = '#e5e7eb'
+        border_color = '#4b5563'
+        
+        for row_idx, row in enumerate(table_data):
+            is_header = (row_idx == 0)
+            
+            for col_idx in range(num_cols):
+                cell_value = row[col_idx] if col_idx < len(row) else ""
+                
+                # Choose colors
+                if is_header:
+                    bg = header_bg
+                    fg = header_fg
+                    font_weight = 'bold'
+                else:
+                    bg = row_bg_1 if row_idx % 2 == 1 else row_bg_2
+                    fg = row_fg
+                    font_weight = 'normal'
+                
+                # Wrap long text to multiple lines (max 40 chars per line for headers, 50 for data)
+                max_chars = 40 if is_header else 50
+                if len(cell_value) > max_chars:
+                    words = cell_value.split()
+                    lines = []
+                    current_line = ""
+                    for word in words:
+                        if not current_line:
+                            current_line = word
+                        elif len(current_line) + 1 + len(word) <= max_chars:
+                            current_line += " " + word
+                        else:
+                            lines.append(current_line)
+                            current_line = word
+                    if current_line:
+                        lines.append(current_line)
+                    cell_value = "\n".join(lines)
+                
+                # Create cell label with wraplength for all cells
+                cell = tk.Label(
+                    table_frame,
+                    text=cell_value,
+                    bg=bg,
+                    fg=fg,
+                    font=('Segoe UI', 10, font_weight),
+                    padx=12,
+                    pady=6,
+                    relief='flat',
+                    borderwidth=1,
+                    anchor='center',
+                    justify='center',
+                    wraplength=300 if is_header else 350  # Auto-wrap at pixel width
+                )
+                cell.grid(row=row_idx, column=col_idx, sticky='nsew', padx=1, pady=1)
+        
+        # Configure column weights for equal distribution
+        for col in range(num_cols):
+            table_frame.grid_columnconfigure(col, weight=1)
+        
+        # Insert newline before table
+        textbox.insert("end", "\n")
+        
+        # Insert table widget into textbox
+        textbox.window_create("end", window=table_frame, padx=10, pady=5)
+        
+        # Insert newline after table
+        textbox.insert("end", "\n\n")
+    
+    def _insert_styled_bullet(self, textbox, bullet_text):
+        """
+        Insert a styled bullet point with professional formatting
+        
+        Args:
+            textbox: Text widget to insert into
+            bullet_text: Bullet content text
+        """
+        import tkinter as tk
+        import re
+        
+        # Remove ** markers from text
+        cleaned_text = bullet_text.replace('**', '')
+        
+        # Create frame for bullet
+        bullet_frame = tk.Frame(textbox, bg='#1e1e1e')
+        
+        # Bullet symbol
+        bullet_symbol = tk.Label(
+            bullet_frame,
+            text="  • ",
+            bg='#1e1e1e',
+            fg='#4ade80',
+            font=('Segoe UI', 11, 'bold'),
+            anchor='nw'
+        )
+        bullet_symbol.pack(side=tk.LEFT, anchor='n', padx=(0, 5))
+        
+        # Check if text has "Label:" format - make label bold
+        colon_match = re.match(r'^([^:]+):\s*(.*)$', cleaned_text)
+        
+        if colon_match:
+            # Split into label (bold) and rest (normal)
+            label_text = colon_match.group(1)
+            rest_text = colon_match.group(2)
+            
+            # Container for text with mixed formatting (vertical stack)
+            text_container = tk.Frame(bullet_frame, bg='#1e1e1e')
+            text_container.pack(side=tk.LEFT, fill=tk.BOTH, expand=True, pady=2)
+            
+            # Bold label on first line
+            label_widget = tk.Label(
+                text_container,
+                text=label_text + ":",
+                bg='#1e1e1e',
+                fg='#ffffff',
+                font=('Segoe UI', 11, 'bold'),
+                justify=tk.LEFT,
+                anchor='w'
+            )
+            label_widget.pack(anchor='w')
+            
+            # Normal rest text below, indented slightly
+            rest_widget = tk.Label(
+                text_container,
+                text=rest_text,
+                bg='#1e1e1e',
+                fg='#ffffff',
+                font=('Segoe UI', 11),
+                justify=tk.LEFT,
+                anchor='w',
+                wraplength=680
+            )
+            rest_widget.pack(anchor='w', padx=(0, 0))
+        else:
+            # No colon - just regular text
+            bullet_label = tk.Label(
+                bullet_frame,
+                text=cleaned_text,
+                bg='#1e1e1e',
+                fg='#ffffff',
+                font=('Segoe UI', 11),
+                justify=tk.LEFT,
+                anchor='w',
+                wraplength=700
+            )
+            bullet_label.pack(side=tk.LEFT, fill=tk.BOTH, expand=True, pady=2)
+        
+        # Insert bullet frame into textbox
+        textbox.window_create("end", window=bullet_frame, padx=5, pady=2)
+        textbox.insert("end", "\n")
     
     def _create_feedback_area(self):
         """Create feedback buttons area"""
@@ -554,6 +952,14 @@ class ChatArea:
             query: Original query (for feedback tracking)
             sources: Source documents (for feedback tracking)
         """
+        # Use HTML rendering if available
+        if hasattr(self, '_use_html_rendering') and self._use_html_rendering:
+            self._append_html_message(text, sender)
+            if sender == "assistant" and sources:
+                self.last_sources = sources
+            return
+        
+        # Fallback to text-based rendering
         self.chat_display.configure(state="normal")
         
         if sender == "user":
@@ -612,40 +1018,46 @@ class ChatArea:
             self.chat_display.see("end")
     
     def _export_response(self):
-        """Export the last response to a file"""
+        """Export the last response to PDF"""
         if not self.last_response:
             return
         
         from tkinter import filedialog
         from datetime import datetime
+        from src.export_manager import get_export_manager
         
-        # Ask for file location
+        # Ask for save location
         filename = filedialog.asksaveasfilename(
-            defaultextension=".txt",
-            filetypes=[("Text files", "*.txt"), ("Markdown files", "*.md"), ("All files", "*.*")],
-            initialfile=f"query_export_{datetime.now().strftime('%Y%m%d_%H%M%S')}.txt"
+            defaultextension=".pdf",
+            filetypes=[("PDF files", "*.pdf"), ("All files", "*.*")],
+            initialfile=f"query_export_{datetime.now().strftime('%Y%m%d_%H%M%S')}.pdf"
         )
         
         if filename:
             try:
-                with open(filename, 'w', encoding='utf-8') as f:
-                    f.write(f"# PyRAG Query Export\n")
-                    f.write(f"Date: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n\n")
-                    f.write(f"## Question\n{self.last_query}\n\n")
-                    f.write(f"## Answer\n{self.last_response}\n\n")
-                    
-                    if self.last_sources:
-                        f.write("## Sources\n")
-                        for i, src in enumerate(self.last_sources[:5], 1):
-                            f.write(f"{i}. {src.get('document', 'Unknown')} (Page {src.get('page', 'N/A')})\n")
-                            if src.get('text'):
-                                f.write(f"   > {src['text'][:200]}...\n\n")
+                # Use export manager for professional PDF
+                export_manager = get_export_manager()
                 
-                # Show confirmation
-                self.chat_display.configure(state="normal")
-                self.chat_display.insert("end", f"\n✅ Exported to {filename}\n", "system_tag")
-                self.chat_display.configure(state="disabled")
-                self.chat_display.see("end")
+                # Create PDF
+                result = export_manager.export_to_pdf(
+                    query=self.last_query,
+                    response=self.last_response,
+                    sources=self.last_sources,
+                    metadata={}
+                )
+                
+                if result:
+                    # Move to user's selected location
+                    import shutil
+                    shutil.move(result, filename)
+                    
+                    # Show confirmation
+                    self.chat_display.configure(state="normal")
+                    self.chat_display.insert("end", f"\n✅ PDF exported to {filename}\n", "system_tag")
+                    self.chat_display.configure(state="disabled")
+                    self.chat_display.see("end")
+                else:
+                    raise Exception("PDF generation failed")
                 
             except Exception as e:
                 self.chat_display.configure(state="normal")
@@ -763,9 +1175,15 @@ class ChatArea:
     
     def clear_chat(self):
         """Clear all chat messages"""
-        self.chat_display.configure(state="normal")
-        self.chat_display.delete("1.0", "end")
-        self.chat_display.configure(state="disabled")
+        # Clear HTML content if using HTML rendering
+        if hasattr(self, '_use_html_rendering') and self._use_html_rendering:
+            self._html_content = []
+            self._update_html_display()
+        else:
+            self.chat_display.configure(state="normal")
+            self.chat_display.delete("1.0", "end")
+            self.chat_display.configure(state="disabled")
+        
         self.chat_history = []
         self.last_query_analysis = None
         self._status_start_index = None
