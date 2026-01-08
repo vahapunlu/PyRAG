@@ -177,9 +177,15 @@ class GraphRetriever:
         
         # Count by type
         by_type = {}
+        learned_count = 0
+        
         for ref in references:
             ref_type = ref['type'][0] if ref['type'] else 'Unknown'
             by_type[ref_type] = by_type.get(ref_type, 0) + 1
+            
+            # Check for learned relationships
+            if 'COMPLEMENTS' in ref.get('relationship_types', []):
+                learned_count += 1
         
         # Build summary
         parts = []
@@ -190,10 +196,13 @@ class GraphRetriever:
         if 'DOCUMENT' in by_type:
             parts.append(f"{by_type['DOCUMENT']} döküman")
         
+        if learned_count > 0:
+            parts.append(f"**{learned_count} adet öğrenilmiş ilişki**")
+        
         if not parts:
             return ""
         
-        return f"Graph'ta {', '.join(parts)} bulundu"
+        return f"Graph analizinde {', '.join(parts)} tespit edilmiştir."
     
     def get_statistics(self) -> Dict:
         """Get graph statistics"""

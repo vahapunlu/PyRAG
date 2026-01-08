@@ -577,12 +577,12 @@ class QueryEngine:
             )
             
             # Step 2.5: Apply bullet feedback penalties to irrelevant chunks
-            # GEÇİCİ: Penalty sistemi devre dışı - tüm chunk'ları göster
-            # if self.bullet_feedback_manager:
-            #     blended_nodes = self._apply_bullet_feedback_penalties(
-            #         nodes=blended_nodes,
-            #         query=question
-            #     )
+            # Apply learned penalties to filter out noise
+            if self.bullet_feedback_manager:
+                blended_nodes = self._apply_bullet_feedback_penalties(
+                    nodes=blended_nodes,
+                    query=question
+                )
             
             # Step 5: Create query engine with blended results
             # Adjust system prompt based on single vs multi-document query

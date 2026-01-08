@@ -385,6 +385,12 @@ Context (one sentence):"""
         """
         logger.info(f"🔄 Enriching {len(nodes)} chunks with contextual information...")
         
+        # Get entity extractor for metadata enrichment
+        try:
+            entity_extractor = get_entity_extractor()
+        except:
+            entity_extractor = None
+        
         # Build document lookup
         doc_lookup = {}
         for doc in documents:
@@ -459,6 +465,14 @@ Context (one sentence):"""
                     except Exception as e:
                         logger.debug(f"Table processing skipped: {e}")
                 
+                # Entity Extraction - Enrich metadata with standards/specs
+                entity_metadata = {}
+                if entity_extractor:
+                    try:
+                        entity_metadata = entity_extractor.extract_for_metadata(node.text)
+                    except Exception as e:
+                        logger.debug(f"Entity extraction failed: {e}")
+
                 # Create enriched node
                 enriched_text = f"{context_prefix}{table_enrichment}\n\n{node.text}"
                 
@@ -467,6 +481,7 @@ Context (one sentence):"""
                     text=enriched_text,
                     metadata={
                         **node.metadata,
+                        **entity_metadata,
                         'original_text': node.text,  # Keep original for display
                         'context_prefix': context_prefix,
                         'section_path': section_path,
@@ -649,11 +664,11 @@ class EntityExtractor:
                 keyword = match.group(0).lower()
                 
                 # Determine requirement type
-                if keyword in ['shall', 'must', 'required', 'mandatory', 'obligatory']:
+                if keyword in ['shall', 'must', 'required', 'mandatory', 'obligatory', 'meli', 'malı', 'zorunludur', 'gereklidir', 'mecburidir', 'şarttır']:
                     req_type = 'mandatory'
-                elif keyword in ['should', 'recommended', 'preferred']:
+                elif keyword in ['should', 'recommended', 'preferred', 'önerilir', 'tavsiye edilir', 'tercih edilir', 'beklenir']:
                     req_type = 'recommended'
-                elif keyword in ['may', 'optional', 'permitted']:
+                elif keyword in ['may', 'optional', 'permitted', 'olabilir', 'opsiyonel', 'serbesttir', 'izin verilir']:
                     req_type = 'optional'
                 else:
                     req_type = 'prohibited'

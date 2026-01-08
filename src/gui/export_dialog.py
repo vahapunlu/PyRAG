@@ -248,24 +248,29 @@ class ExportDialog(ctk.CTkToplevel):
         errors = []
         
         try:
-            # Prepare result data
-            result = {
-                'response': query_data.get('response', ''),
-                'sources': query_data.get('sources', []) if self.include_sources_var.get() else [],
-                'metadata': {
-                    'query': query_data['query'],
-                    'timestamp': query_data['timestamp'],
-                    'duration': query_data.get('duration', 0)
-                } if self.include_metadata_var.get() else {}
-            }
+            # Prepare export parameters
+            query = query_data['query']
+            response = query_data.get('response', '')
+            sources = query_data.get('sources', []) if self.include_sources_var.get() else []
+            metadata = {
+                'query': query_data['query'],
+                'timestamp': query_data.get('timestamp', ''),
+                'duration': query_data.get('duration', 0)
+            } if self.include_metadata_var.get() else None
+            
+            # Update export manager output directory
+            self.export_manager.export_dir = output_dir
             
             # Export Markdown (always)
             try:
                 md_path = self.export_manager.export_to_markdown(
-                    result,
-                    output_dir / f"{filename_base}.md"
+                    query=query,
+                    response=response,
+                    sources=sources,
+                    metadata=metadata
                 )
-                exported_files.append(str(md_path))
+                if md_path:
+                    exported_files.append(str(md_path))
             except Exception as e:
                 errors.append(f"Markdown: {str(e)}")
             
@@ -273,10 +278,13 @@ class ExportDialog(ctk.CTkToplevel):
             if self.pdf_var.get():
                 try:
                     pdf_path = self.export_manager.export_to_pdf(
-                        result,
-                        output_dir / f"{filename_base}.pdf"
+                        query=query,
+                        response=response,
+                        sources=sources,
+                        metadata=metadata
                     )
-                    exported_files.append(str(pdf_path))
+                    if pdf_path:
+                        exported_files.append(str(pdf_path))
                 except Exception as e:
                     errors.append(f"PDF: {str(e)}")
             
@@ -284,10 +292,13 @@ class ExportDialog(ctk.CTkToplevel):
             if self.word_var.get():
                 try:
                     word_path = self.export_manager.export_to_word(
-                        result,
-                        output_dir / f"{filename_base}.docx"
+                        query=query,
+                        response=response,
+                        sources=sources,
+                        metadata=metadata
                     )
-                    exported_files.append(str(word_path))
+                    if word_path:
+                        exported_files.append(str(word_path))
                 except Exception as e:
                     errors.append(f"Word: {str(e)}")
             

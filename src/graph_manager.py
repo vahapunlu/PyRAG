@@ -8,6 +8,7 @@ Handles document nodes, section nodes, standard nodes, and relationships.
 from typing import List, Dict, Optional
 from neo4j import GraphDatabase
 from loguru import logger
+from datetime import datetime
 import os
 
 
@@ -301,6 +302,189 @@ class GraphManager:
             stats['relationships'] = rel_result.single()['relationships']
             
             return stats
+    
+    def create_learned_relationship(
+        self,
+        doc1: str,
+        doc2: str,
+        rel_type: str,
+        weight: float,
+        metadata: Dict = None
+    ):
+        """
+        Create a learned relationship between two documents
+        
+        Args:
+            doc1: First document name
+            doc2: Second document name
+            rel_type: Relationship type (e.g., 'COMPLEMENTS', 'RELATED_TO')
+            weight: Relationship weight/confidence (0-1)
+            metadata: Additional metadata
+        """
+        with self.driver.session(database=self.database) as session:
+            properties = {
+                'weight': weight,
+                'learned': True,
+                'created_at': datetime.now().isoformat()
+            }
+            if metadata:
+                properties.update(metadata)
+            
+            query = f"""
+                MATCH (d1:DOCUMENT {{name: $doc1}})
+                MATCH (d2:DOCUMENT {{name: $doc2}})
+                MERGE (d1)-[r:{rel_type}]->(d2)
+                SET r += $properties
+                RETURN r
+            """
+            session.run(query, doc1=doc1, doc2=doc2, properties=properties)
+            logger.debug(f"🔗 Created learned relationship: {doc1} -[{rel_type}:{weight:.2f}]-> {doc2}")
+    
+    def get_relationship_weight(self, doc1: str, doc2: str, rel_type: str) -> Optional[float]:
+        """
+        Get weight of a relationship
+        
+        Args:
+            doc1: First document name
+            doc2: Second document name
+            rel_type: Relationship type
+            
+        Returns:
+            Weight value or None if relationship doesn't exist
+        """
+        with self.driver.session(database=self.database) as session:
+            query = f"""
+                MATCH (d1:DOCUMENT {{name: $doc1}})-[r:{rel_type}]->(d2:DOCUMENT {{name: $doc2}})
+                RETURN r.weight as weight
+            """
+            result = session.run(query, doc1=doc1, doc2=doc2)
+            record = result.single()
+            return record['weight'] if record else None
+    
+    def update_relationship_weight(self, doc1: str, doc2: str, rel_type: str, new_weight: float):
+        """
+        Update weight of an existing relationship
+        
+        Args:
+            doc1: First document name
+            doc2: Second document name
+            rel_type: Relationship type
+            new_weight: New weight value
+        """
+        with self.driver.session(database=self.database) as session:
+            query = f"""
+                MATCH (d1:DOCUMENT {{name: $doc1}})-[r:{rel_type}]->(d2:DOCUMENT {{name: $doc2}})
+                SET r.weight = $new_weight, r.updated_at = $timestamp
+                RETURN r
+            """
+            session.run(
+                query,
+                doc1=doc1,
+                doc2=doc2,
+                new_weight=new_weight,
+                timestamp=datetime.now().isoformat()
+            )
+    
+    def get_learned_relationship_stats(self) -> Dict:
+        """
+        Get statistics about learned relationships
+        
+        Returns:
+            Statistics dictionary
+        """
+        with self.driver.session(database=self.database) as session:
+            result = session.run("""
+                MATCH ()-[r]->()
+                WHERE r.learned = true
+                RETURN 
+                    count(r) as total_learned,
+                    avg(r.weight) as avg_weight,
+                    max(r.weight) as max_weight,
+                    min(r.weight) as min_weight,
+                    count(DISTINCT type(r)) as relationship_types
+            """)
+            
+            record = result.single()
+            if record and record['total_learned'] > 0:
+                return dict(record)
+            else:
+                return {
+                    'total_learned': 0,
+                    'avg_weight': 0,
+                    'max_weight': 0,
+                    'min_weight': 0,
+                    'relationship_types': 0
+                }
+    
+    def prune_learned_relationships(self, min_weight: float) -> int:
+        """
+        Remove learned relationships below weight threshold
+        
+        Args:
+            min_weight: Minimum weight to keep
+            
+        Returns:
+            Number of relationships removed
+        """
+        with self.driver.session(database=self.database) as session:
+            result = session.run("""
+                MATCH ()-[r]->()
+                WHERE r.learned = true AND r.weight < $min_weight
+                DELETE r
+                RETURN count(r) as deleted
+            """, min_weight=min_weight)
+            
+            record = result.single()
+            return record['deleted'] if record else 0
+    
+    def get_related_documents(
+        self,
+        doc_name: str,
+        rel_types: List[str] = None,
+        min_weight: float = 0.0
+    ) -> List[Dict]:
+        """
+        Get related documents based on learned relationships
+        
+        Args:
+            doc_name: Document name
+            rel_types: List of relationship types to consider (None = all)
+            min_weight: Minimum relationship weight
+            
+        Returns:
+            List of related documents with weights
+        """
+        with self.driver.session(database=self.database) as session:
+            if rel_types:
+                rel_filter = " OR ".join([f"type(r) = '{rt}'" for rt in rel_types])
+                where_clause = f"WHERE ({rel_filter}) AND r.weight >= $min_weight"
+            else:
+                where_clause = "WHERE r.weight >= $min_weight"
+            
+            query = f"""
+                MATCH (d1:DOCUMENT {{name: $doc_name}})-[r]-(d2:DOCUMENT)
+                {where_clause}
+                RETURN 
+                    d2.name as document,
+                    type(r) as relationship_type,
+                    r.weight as weight,
+                    r.learned as learned
+                ORDER BY r.weight DESC
+                LIMIT 10
+            """
+            
+            result = session.run(query, doc_name=doc_name, min_weight=min_weight)
+            
+            related = []
+            for record in result:
+                related.append({
+                    'document': record['document'],
+                    'relationship_type': record['relationship_type'],
+                    'weight': record['weight'],
+                    'learned': record.get('learned', False)
+                })
+            
+            return related
 
 
 def get_graph_manager() -> Optional[GraphManager]:

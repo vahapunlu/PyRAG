@@ -1,0 +1,435 @@
+<!-- 
+Granular Feedback UI Component Example
+
+Bu HTML/JS örneği, granular feedback nasıl toplanabileceğini gösterir.
+app_gui.py'ye entegre edilebilir.
+-->
+
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Granular Feedback UI</title>
+    <style>
+        .feedback-container {
+            background: #f8f9fa;
+            padding: 20px;
+            border-radius: 8px;
+            margin-top: 20px;
+        }
+        
+        .source-card {
+            background: white;
+            padding: 15px;
+            margin: 10px 0;
+            border-radius: 6px;
+            border: 1px solid #dee2e6;
+        }
+        
+        .source-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 10px;
+        }
+        
+        .source-title {
+            font-weight: bold;
+            color: #333;
+        }
+        
+        .rating-buttons {
+            display: flex;
+            gap: 10px;
+        }
+        
+        .rating-btn {
+            padding: 8px 16px;
+            border: 1px solid #ccc;
+            background: white;
+            border-radius: 4px;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        
+        .rating-btn:hover {
+            background: #f0f0f0;
+        }
+        
+        .rating-btn.active {
+            background: #007bff;
+            color: white;
+            border-color: #007bff;
+        }
+        
+        .rating-btn.helpful.active {
+            background: #28a745;
+            border-color: #28a745;
+        }
+        
+        .rating-btn.not-helpful.active {
+            background: #ffc107;
+            border-color: #ffc107;
+        }
+        
+        .rating-btn.irrelevant.active {
+            background: #dc3545;
+            border-color: #dc3545;
+        }
+        
+        .stars {
+            display: flex;
+            gap: 5px;
+            margin: 10px 0;
+        }
+        
+        .star {
+            font-size: 24px;
+            cursor: pointer;
+            color: #ddd;
+            transition: color 0.2s;
+        }
+        
+        .star:hover,
+        .star.filled {
+            color: #ffc107;
+        }
+        
+        .comment-box {
+            width: 100%;
+            padding: 8px;
+            margin-top: 10px;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+            font-family: inherit;
+            resize: vertical;
+        }
+        
+        .highlight-selection {
+            background: #fff3cd;
+            cursor: pointer;
+            border-bottom: 2px solid #ffc107;
+        }
+        
+        .overall-rating {
+            text-align: center;
+            padding: 20px;
+            background: white;
+            border-radius: 6px;
+            margin-bottom: 20px;
+        }
+        
+        .submit-btn {
+            background: #28a745;
+            color: white;
+            padding: 12px 24px;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 16px;
+            width: 100%;
+            margin-top: 20px;
+        }
+        
+        .submit-btn:hover {
+            background: #218838;
+        }
+        
+        .dimension-rating {
+            margin: 15px 0;
+        }
+        
+        .dimension-label {
+            font-weight: 500;
+            margin-bottom: 5px;
+        }
+    </style>
+</head>
+<body>
+
+<div class="feedback-container">
+    <h3>📊 Cevap Hakkında Geri Bildirim</h3>
+    
+    <!-- Overall Rating -->
+    <div class="overall-rating">
+        <h4>Genel Değerlendirme</h4>
+        <div class="stars" id="overall-stars">
+            <span class="star" data-rating="1">★</span>
+            <span class="star" data-rating="2">★</span>
+            <span class="star" data-rating="3">★</span>
+            <span class="star" data-rating="4">★</span>
+            <span class="star" data-rating="5">★</span>
+        </div>
+        <p id="rating-text"></p>
+    </div>
+    
+    <!-- Multi-Dimensional Ratings -->
+    <div class="dimension-rating">
+        <div class="dimension-label">📌 Soruyla Ne Kadar İlgili?</div>
+        <div class="stars dimension-stars" data-dimension="relevance">
+            <span class="star" data-rating="1">★</span>
+            <span class="star" data-rating="2">★</span>
+            <span class="star" data-rating="3">★</span>
+            <span class="star" data-rating="4">★</span>
+            <span class="star" data-rating="5">★</span>
+        </div>
+    </div>
+    
+    <div class="dimension-rating">
+        <div class="dimension-label">💡 Ne Kadar Açık ve Anlaşılır?</div>
+        <div class="stars dimension-stars" data-dimension="clarity">
+            <span class="star" data-rating="1">★</span>
+            <span class="star" data-rating="2">★</span>
+            <span class="star" data-rating="3">★</span>
+            <span class="star" data-rating="4">★</span>
+            <span class="star" data-rating="5">★</span>
+        </div>
+    </div>
+    
+    <div class="dimension-rating">
+        <div class="dimension-label">✅ Ne Kadar Eksiksiz?</div>
+        <div class="stars dimension-stars" data-dimension="completeness">
+            <span class="star" data-rating="1">★</span>
+            <span class="star" data-rating="2">★</span>
+            <span class="star" data-rating="3">★</span>
+            <span class="star" data-rating="4">★</span>
+            <span class="star" data-rating="5">★</span>
+        </div>
+    </div>
+    
+    <!-- Source-Level Feedback -->
+    <h4 style="margin-top: 30px;">📚 Kaynakları Değerlendirin</h4>
+    
+    <div class="source-card">
+        <div class="source-header">
+            <span class="source-title">📄 IS 3218 - Sayfa 15</span>
+        </div>
+        <div class="rating-buttons">
+            <button class="rating-btn helpful" data-rating="helpful">
+                👍 Yararlı
+            </button>
+            <button class="rating-btn not-helpful" data-rating="not_helpful">
+                👎 Pek Yararlı Değil
+            </button>
+            <button class="rating-btn irrelevant" data-rating="irrelevant">
+                ❌ Alakasız
+            </button>
+        </div>
+        <div class="stars" style="margin-top: 10px;">
+            <span class="star" data-rating="1">★</span>
+            <span class="star" data-rating="2">★</span>
+            <span class="star" data-rating="3">★</span>
+            <span class="star" data-rating="4">★</span>
+            <span class="star" data-rating="5">★</span>
+        </div>
+        <textarea class="comment-box" placeholder="Bu kaynak hakkında yorumunuz (isteğe bağlı)"></textarea>
+    </div>
+    
+    <div class="source-card">
+        <div class="source-header">
+            <span class="source-title">📄 NEK 606 - Sayfa 8</span>
+        </div>
+        <div class="rating-buttons">
+            <button class="rating-btn helpful" data-rating="helpful">
+                👍 Yararlı
+            </button>
+            <button class="rating-btn not-helpful" data-rating="not_helpful">
+                👎 Pek Yararlı Değil
+            </button>
+            <button class="rating-btn irrelevant" data-rating="irrelevant">
+                ❌ Alakasız
+            </button>
+        </div>
+        <div class="stars" style="margin-top: 10px;">
+            <span class="star" data-rating="1">★</span>
+            <span class="star" data-rating="2">★</span>
+            <span class="star" data-rating="3">★</span>
+            <span class="star" data-rating="4">★</span>
+            <span class="star" data-rating="5">★</span>
+        </div>
+        <textarea class="comment-box" placeholder="Bu kaynak hakkında yorumunuz (isteğe bağlı)"></textarea>
+    </div>
+    
+    <!-- Text Selection Hint -->
+    <div style="background: #e7f3ff; padding: 15px; border-radius: 6px; margin-top: 20px;">
+        <strong>💡 İpucu:</strong> Cevap metninde yararlı bulduğunuz kısımları mouse ile seçerek işaretleyebilirsiniz!
+    </div>
+    
+    <!-- Overall Comment -->
+    <textarea class="comment-box" placeholder="Genel yorumunuz (isteğe bağlı)" style="margin-top: 20px; min-height: 80px;"></textarea>
+    
+    <!-- Submit Button -->
+    <button class="submit-btn" onclick="submitFeedback()">
+        📤 Geri Bildirimi Gönder
+    </button>
+</div>
+
+<script>
+// Feedback data collector
+const feedbackData = {
+    overall_rating: 0,
+    dimensions: {
+        relevance: 0,
+        clarity: 0,
+        completeness: 0
+    },
+    sources: [],
+    highlights: [],
+    comment: ''
+};
+
+// Overall star rating
+document.querySelectorAll('#overall-stars .star').forEach(star => {
+    star.addEventListener('click', function() {
+        const rating = parseInt(this.dataset.rating);
+        feedbackData.overall_rating = rating;
+        
+        // Update visual
+        document.querySelectorAll('#overall-stars .star').forEach((s, index) => {
+            if (index < rating) {
+                s.classList.add('filled');
+            } else {
+                s.classList.remove('filled');
+            }
+        });
+        
+        // Update text
+        const texts = ['Çok Kötü', 'Kötü', 'Orta', 'İyi', 'Mükemmel'];
+        document.getElementById('rating-text').textContent = texts[rating - 1];
+    });
+});
+
+// Dimension ratings
+document.querySelectorAll('.dimension-stars').forEach(container => {
+    const dimension = container.dataset.dimension;
+    container.querySelectorAll('.star').forEach(star => {
+        star.addEventListener('click', function() {
+            const rating = parseInt(this.dataset.rating);
+            feedbackData.dimensions[dimension] = rating;
+            
+            // Update visual
+            container.querySelectorAll('.star').forEach((s, index) => {
+                if (index < rating) {
+                    s.classList.add('filled');
+                } else {
+                    s.classList.remove('filled');
+                }
+            });
+        });
+    });
+});
+
+// Source rating buttons
+document.querySelectorAll('.source-card').forEach((card, sourceIndex) => {
+    // Rating buttons (helpful/not helpful/irrelevant)
+    card.querySelectorAll('.rating-btn').forEach(btn => {
+        btn.addEventListener('click', function() {
+            // Remove active from siblings
+            this.parentElement.querySelectorAll('.rating-btn').forEach(b => {
+                b.classList.remove('active');
+            });
+            // Add active to clicked
+            this.classList.add('active');
+            
+            // Update feedback data
+            if (!feedbackData.sources[sourceIndex]) {
+                feedbackData.sources[sourceIndex] = {};
+            }
+            feedbackData.sources[sourceIndex].rating = this.dataset.rating;
+        });
+    });
+    
+    // Star ratings for sources
+    card.querySelectorAll('.stars .star').forEach(star => {
+        star.addEventListener('click', function() {
+            const rating = parseInt(this.dataset.rating);
+            
+            // Update visual
+            this.parentElement.querySelectorAll('.star').forEach((s, index) => {
+                if (index < rating) {
+                    s.classList.add('filled');
+                } else {
+                    s.classList.remove('filled');
+                }
+            });
+            
+            // Update feedback data
+            if (!feedbackData.sources[sourceIndex]) {
+                feedbackData.sources[sourceIndex] = {};
+            }
+            feedbackData.sources[sourceIndex].stars = rating;
+        });
+    });
+    
+    // Comment box
+    const commentBox = card.querySelector('.comment-box');
+    commentBox.addEventListener('input', function() {
+        if (!feedbackData.sources[sourceIndex]) {
+            feedbackData.sources[sourceIndex] = {};
+        }
+        feedbackData.sources[sourceIndex].comment = this.value;
+    });
+});
+
+// Text selection highlighting
+document.addEventListener('mouseup', function() {
+    const selection = window.getSelection();
+    const selectedText = selection.toString().trim();
+    
+    if (selectedText.length > 10) {  // Minimum 10 karakter
+        const userConfirm = confirm(`"${selectedText.substring(0, 50)}..." bu metni yararlı olarak işaretlemek ister misiniz?`);
+        
+        if (userConfirm) {
+            feedbackData.highlights.push({
+                text: selectedText,
+                sentiment: 'positive',
+                // Bu gerçek uygulamada source'tan alınmalı
+                source: 'IS3218'
+            });
+            
+            // Visual feedback
+            const range = selection.getRangeAt(0);
+            const span = document.createElement('span');
+            span.className = 'highlight-selection';
+            range.surroundContents(span);
+            
+            alert(`✅ ${feedbackData.highlights.length} metin işaretlendi`);
+        }
+    }
+});
+
+// Submit feedback
+function submitFeedback() {
+    // Collect overall comment
+    feedbackData.comment = document.querySelector('.feedback-container > .comment-box').value;
+    
+    // Validate
+    if (feedbackData.overall_rating === 0) {
+        alert('Lütfen genel değerlendirme yapınız!');
+        return;
+    }
+    
+    // Send to backend
+    console.log('Feedback Data:', feedbackData);
+    
+    // In real app, call Python API:
+    fetch('/api/submit_granular_feedback', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(feedbackData)
+    })
+    .then(response => response.json())
+    .then(data => {
+        alert('✅ Geri bildiriminiz kaydedildi ve sistemden öğrenildi! Teşekkürler!');
+        // Reset form or close modal
+    })
+    .catch(error => {
+        console.error('Error:', error);
+        alert('❌ Bir hata oluştu!');
+    });
+}
+</script>
+
+</body>
+</html>

@@ -93,8 +93,9 @@ def clean_neo4j():
         graph_manager.close()
         
     except Exception as e:
-        logger.error(f"❌ Neo4j cleanup error: {e}")
-        raise
+        # Neo4j may be offline/unreachable; do not fail the entire cleanup.
+        logger.warning(f"⚠️  Neo4j cleanup skipped (unavailable): {e}")
+        return
 
 def clean_cache_databases():
     """Clean all cache databases (semantic cache, response cache, feedback)"""
@@ -132,30 +133,23 @@ def main():
     print("\n🚀 Cleaning ALL databases...")
     print("\n" + "=" * 60)
     
-    try:
-        # Clean Qdrant
-        clean_qdrant()
-        print()
-        
-        # Clean Neo4j
-        clean_neo4j()
-        print()
-        
-        # Clean cache databases
-        clean_cache_databases()
-        print()
-        
-        print("=" * 60)
-        logger.success("🎉 ALL DATABASES CLEANED SUCCESSFULLY!")
-        print("=" * 60)
-        print("\n✅ You can now re-index your documents fresh.")
-        print("   Qdrant and Neo4j will be populated together.\n")
-        
-    except Exception as e:
-        print("\n" + "=" * 60)
-        logger.error(f"❌ CLEANUP FAILED: {e}")
-        print("=" * 60)
-        raise
+    # Clean Qdrant
+    clean_qdrant()
+    print()
+    
+    # Clean Neo4j (best-effort)
+    clean_neo4j()
+    print()
+    
+    # Clean cache databases
+    clean_cache_databases()
+    print()
+    
+    print("=" * 60)
+    logger.success("🎉 CLEANUP COMPLETE!")
+    print("=" * 60)
+    print("\n✅ You can now re-index your documents fresh.")
+    print("   (Neo4j cleanup is best-effort and may be skipped if unreachable.)\n")
 
 if __name__ == "__main__":
     main()

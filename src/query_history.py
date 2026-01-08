@@ -186,13 +186,20 @@ class QueryHistory:
         
         return None
     
-    def clear_all(self):
-        """Clear all history"""
+    def clear_all(self) -> int:
+        """Clear all history
+        
+        Returns:
+            Number of deleted records
+        """
         with sqlite3.connect(self.db_path) as conn:
+            # Get count before deleting
+            count = conn.execute("SELECT COUNT(*) FROM query_history").fetchone()[0]
             conn.execute("DELETE FROM query_history")
             conn.commit()
         
-        logger.warning("⚠️ Query history cleared")
+        logger.warning(f"⚠️ Query history cleared ({count} records deleted)")
+        return count
     
     def get_statistics(self) -> Dict:
         """Get history statistics"""

@@ -34,7 +34,7 @@ def main():
         
         collection_name = settings.get_collection_name()
         
-        logger.info(f"🗄️  Vector Store: {settings.vector_store_type}")
+        logger.info(f"🗄️  Vector Store: Qdrant")
         logger.info(f"📚 Collection: {collection_name}")
         logger.info("")
         

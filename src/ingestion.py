@@ -478,8 +478,8 @@ class DocumentIngestion:
         
         # Hierarchical chunking: Large parent chunks + Small child chunks
         node_parser = HierarchicalNodeParser.from_defaults(
-            chunk_sizes=[2048, 1024, 512],  # Parent -> Child -> Grandchild
-            chunk_overlap=200
+            chunk_sizes=[1024, 512, 128],  # Parent -> Child -> Grandchild (128 for fine details)
+            chunk_overlap=64  # Reduced overlap for smaller chunks
         )
         
         # Parse documents into hierarchical nodes
