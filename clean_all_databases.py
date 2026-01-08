@@ -17,7 +17,33 @@ def clean_qdrant():
         settings = get_settings()
         logger.info("🗑️  Cleaning Qdrant...")
         
+        # Check if using Cloud
+        if settings.qdrant_url and settings.qdrant_api_key:
+            logger.info(f"   ☁️  Detected Qdrant Cloud: {settings.qdrant_url}")
+            try:
+                from qdrant_client import QdrantClient
+                client = QdrantClient(url=settings.qdrant_url, api_key=settings.qdrant_api_key)
+                
+                # Delete known collections
+                # We can try to list them or just delete the default one
+                # Usually ingestion uses a specific name, assuming 'rag_collection' or from settings
+                collection_name = "rag_collection" # Default fallbacks
+                
+                # Try to get from settings or ingestion config if accessible, but hardcode 'rag_collection' is common
+                # Or better, fetch all collections
+                collections = client.get_collections().collections
+                for col in collections:
+                    logger.info(f"   🗑️  Deleting cloud collection: {col.name}")
+                    client.delete_collection(col.name)
+                
+                logger.success("✅ Qdrant Cloud cleaned!")
+                return
+            except Exception as e:
+                logger.error(f"❌ Cloud cleanup failed: {e}")
+                # Don't raise, maybe we want to clean local too?
+        
         qdrant_path = Path(settings.qdrant_path)
+
         
         if not qdrant_path.exists():
             logger.info("   ℹ️  Qdrant folder doesn't exist")

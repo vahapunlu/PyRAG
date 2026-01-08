@@ -1,7 +1,7 @@
 # Python cache
 __pycache__/
 *.py[cod]
-*$py.class
+*.class
 *.so
 
 # Distribution / packaging
@@ -15,6 +15,7 @@ build/
 .venv
 venv/
 ENV/
+web/.env.local
 
 # IDE
 .vscode/
@@ -37,4 +38,7 @@ Thumbs.db
 # Large PDF files
 data/*.pdf
 
+# Project specific
 qdrant_db/
+web/node_modules/
+web/.next/

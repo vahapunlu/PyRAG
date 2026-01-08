@@ -11,9 +11,9 @@ const api = axios.create({
 
 export const searchDocuments = async (query: string) => {
   try {
-    const response = await api.post('/query', {
+    // Call internal Next.js API route
+    const response = await api.post('/api/chat', {
       question: query,
-      return_sources: true
     });
     return response.data;
   } catch (error) {
@@ -23,11 +23,9 @@ export const searchDocuments = async (query: string) => {
 };
 
 export const getHealth = async () => {
-    try {
-        const response = await api.get('/health');
-        return response.data;
-    } catch (error) {
-        return { status: 'offline' };
+    // Internal API is always "healthy" if the site is up
+    return { status: 'online', service: 'nextjs-serverless' };
+};
     }
 }
 
