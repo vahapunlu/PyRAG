@@ -92,14 +92,22 @@ class DocumentIngestion:
         
         logger.info("🔧 Connecting to Qdrant...")
         
-        # Qdrant client (local mode)
+        # Qdrant client (local mode or cloud)
         if self.external_client:
             logger.info("   Using existing Qdrant client")
             self.client = self.external_client
         else:
-            self.client = qdrant_client.QdrantClient(
-                path=self.settings.qdrant_path
-            )
+            if self.settings.qdrant_url and self.settings.qdrant_api_key:
+                logger.info(f"   Connecting to Qdrant Cloud: {self.settings.qdrant_url}")
+                self.client = qdrant_client.QdrantClient(
+                    url=self.settings.qdrant_url,
+                    api_key=self.settings.qdrant_api_key
+                )
+            else:
+                logger.info(f"   Using local Qdrant: {self.settings.qdrant_path}")
+                self.client = qdrant_client.QdrantClient(
+                    path=self.settings.qdrant_path
+                )
         
         # Vector store wrapper
         self.vector_store = QdrantVectorStore(

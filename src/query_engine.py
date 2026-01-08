@@ -180,9 +180,16 @@ class QueryEngine:
             collection_name = self.settings.get_collection_name()
             
             # Qdrant Setup
-            self.client = qdrant_client.QdrantClient(
-                path=self.settings.qdrant_path
-            )
+            if self.settings.qdrant_url and self.settings.qdrant_api_key:
+                logger.info(f"Using Qdrant Cloud: {self.settings.qdrant_url}")
+                self.client = qdrant_client.QdrantClient(
+                    url=self.settings.qdrant_url,
+                    api_key=self.settings.qdrant_api_key
+                )
+            else:
+                self.client = qdrant_client.QdrantClient(
+                    path=self.settings.qdrant_path
+                )
             
             vector_store = QdrantVectorStore(
                 client=self.client,

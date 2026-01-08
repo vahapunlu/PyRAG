@@ -27,7 +27,12 @@ class Settings(BaseSettings):
     neo4j_database: str = "neo4j"
     
     # Paths
-    qdrant_path: str = "./qdrant_db"
+    qdrant_path: Optional[str] = "./qdrant_db"
+    
+    # Qdrant Cloud (Optional - overrides local path if set)
+    qdrant_url: Optional[str] = None
+    qdrant_api_key: Optional[str] = None
+
     data_dir: str = "./data"
     
     # Collection (can be changed dynamically for multi-standard support)
