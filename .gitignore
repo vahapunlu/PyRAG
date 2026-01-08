@@ -36,3 +36,5 @@ Thumbs.db
 
 # Large PDF files
 data/*.pdf
+
+qdrant_db/

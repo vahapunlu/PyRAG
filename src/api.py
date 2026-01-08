@@ -81,6 +81,18 @@ app.add_middleware(
 )
 
 
+@app.get("/health")
+async def health_check():
+    """Health check endpoint"""
+    return {"status": "healthy", "service": "pyrag-api", "version": "2.0.0"}
+
+
+@app.get("/")
+async def root():
+    """Root endpoint"""
+    return {"message": "PyRAG API is running. Access docs at /docs"}
+
+
 # Global variables
 query_engine: Optional[QueryEngine] = None
 ingestion: Optional[DocumentIngestion] = None
