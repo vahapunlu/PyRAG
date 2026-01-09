@@ -153,12 +153,13 @@ class QueryEngine:
             
             # Use DeepSeek API
             logger.info("📡 Using DeepSeek API...")
-            Settings.llm = DeepSeek(
+            self.llm = DeepSeek(
                 model=self.settings.llm_model,
                 temperature=self.settings.llm_temperature,
                 api_key=self.settings.deepseek_api_key,
                 system_prompt=system_prompt
             )
+            Settings.llm = self.llm
             
             # Embedding settings (use same model as ingestion for consistency)
             Settings.embed_model = OpenAIEmbedding(
@@ -519,9 +520,9 @@ class QueryEngine:
             is_single_document_query = bool(document_filter) and not category_filter and not project_filter
             
             if is_single_document_query:
-                retrieval_top_k = 100  # MAXIMUM chunks for atomic-level analysis
-                response_mode = "refine"  # Iterative refinement for comprehensive answers
-                logger.info(f"   📖 DEEP SINGLE DOCUMENT MODE: 100 chunks + refine + atomic detail")
+                retrieval_top_k = 60  # Reduced from 100 for safety
+                response_mode = "compact"  # Changed from refine to compact/tree_summarize to avoid template errors
+                logger.info(f"   📖 DEEP SINGLE DOCUMENT MODE: 60 chunks + compact")
             else:
                 retrieval_top_k = 40  # Standard retrieval for multi-doc
                 response_mode = "compact"
@@ -804,7 +805,7 @@ class QueryEngine:
             
             # Return user-friendly error message
             return {
-                "response": "I apologize, but I encountered an error processing your query. Please try again or rephrase your question.",
+                "answer": "I apologize, but I encountered an error processing your query. Please try again or rephrase your question.",
                 "sources": [],
                 "metadata": {
                     "error": str(e),

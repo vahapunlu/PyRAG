@@ -6,6 +6,7 @@ detect conflicts, analyze gaps, and generate comprehensive reports.
 """
 
 import logging
+import qdrant_client
 from typing import List, Dict, Optional, Tuple, Any
 from dataclasses import dataclass
 from enum import Enum
@@ -295,18 +296,25 @@ class CrossReferenceEngine:
             chunk_limit = limit or 10000  # Default to 10000 if no limit
             
             while len(chunks) < chunk_limit:
-                points, next_offset = client.scroll(
-                    collection_name=collection_name,
-                    limit=100,
-                    offset=offset,
-                    with_payload=True,
-                    with_vectors=False,
-                    scroll_filter={
-                        "must": [
-                            {"key": "file_name", "match": {"value": document_name}}
-                        ]
-                    }
-                )
+                try:
+                    points, next_offset = client.scroll(
+                        collection_name=collection_name,
+                        limit=100,
+                        offset=offset,
+                        with_payload=True,
+                        with_vectors=False,
+                        scroll_filter=qdrant_client.http.models.Filter(
+                            must=[
+                                qdrant_client.http.models.FieldCondition(
+                                    key="file_name",
+                                    match=qdrant_client.http.models.MatchValue(value=document_name)
+                                )
+                            ]
+                        )
+                    )
+                except Exception as e:
+                    self.logger.error(f"Scroll error: {e}")
+                    break
                 
                 for point in points:
                     if len(chunks) >= chunk_limit:

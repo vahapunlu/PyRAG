@@ -183,8 +183,8 @@ class Sidebar:
         
         ctk.CTkButton(
             self.frame,
-            text="📄 Auto-Summary",
-            command=self.callbacks.get('open_auto_summary'),
+            text="⛏️ Rule Miner",
+            command=self.callbacks.get('open_rule_miner'),
             height=BUTTON_HEIGHTS['secondary'],
             font=ctk.CTkFont(size=FONT_SIZES['small']),
             fg_color="transparent",

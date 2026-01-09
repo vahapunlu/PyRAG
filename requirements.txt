@@ -38,6 +38,9 @@ pywebview  # Embedded HTML viewer for interactive graphs
 customtkinter
 pillow
 
+# Markdown Support for Reports
+markdown
+
 # PDF Export
 reportlab
 

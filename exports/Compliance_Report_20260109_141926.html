@@ -1,0 +1,1457 @@
+
+        <!DOCTYPE html>
+        <html lang="en">
+        <head>
+            <meta charset="UTF-8">
+            <meta name="viewport" content="width=device-width, initial-scale=1.0">
+            <title>Engineering Compliance Report - PROJ-001</title>
+            <style>
+                @import url('https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;500;700&display=swap');
+                
+                :root {
+                    --primary: #002D62; /* Engineering Navy */
+                    --secondary: #00A3E0; /* Cyan Blue */
+                    --accent: #E31837; /* Alert Red */
+                    --success: #007A33; /* Safe Green */
+                    --warning: #FFB81C; /* Safety Yellow */
+                    --bg: #F5F5F5;
+                    --text: #333333;
+                    --border: #DDDDDD;
+                }
+                
+                body {
+                    font-family: 'Roboto', 'Segoe UI', Arial, sans-serif;
+                    background-color: var(--bg);
+                    color: var(--text);
+                    margin: 0;
+                    padding: 0;
+                    line-height: 1.5;
+                    -webkit-font-smoothing: antialiased;
+                }
+                
+                .container {
+                    max-width: 1100px;
+                    margin: 40px auto;
+                    background: white;
+                    box-shadow: 0 4px 20px rgba(0,0,0,0.08);
+                    min-height: 297mm; /* A4 height */
+                }
+                
+                /* HEADER */
+                header {
+                    background: var(--primary);
+                    color: white;
+                    padding: 30px 50px;
+                    display: flex;
+                    justify-content: space-between;
+                    align-items: flex-start;
+                    border-bottom: 4px solid var(--secondary);
+                }
+                
+                .brand h1 { font-size: 24px; margin: 0; text-transform: uppercase; letter-spacing: 1px; font-weight: 700; }
+                .brand .subtitle { font-size: 13px; opacity: 0.8; font-weight: 300; margin-top: 5px; }
+                
+                .meta-box {
+                    text-align: right;
+                    font-size: 13px;
+                    opacity: 0.95;
+                    line-height: 1.5;
+                    border-left: 1px solid rgba(255,255,255,0.3);
+                    padding-left: 20px;
+                    min-width: 200px;
+                }
+                
+                /* CONTENT SECTIONS */
+                .section { padding: 40px 50px; border-bottom: 1px solid var(--border); }
+                .section:last-child { border-bottom: none; }
+                
+                h2 {
+                    color: var(--primary);
+                    font-size: 20px;
+                    text-transform: uppercase;
+                    border-bottom: 2px solid #eee;
+                    padding-bottom: 10px;
+                    margin-top: 0;
+                    margin-bottom: 30px;
+                    letter-spacing: 0.5px;
+                }
+                
+                p { color: #555; margin-bottom: 20px; }
+                
+                /* DOC COMPARISON GRID */
+                .comparison-grid {
+                    display: grid;
+                    grid-template-columns: 1fr 60px 1fr;
+                    gap: 0;
+                    background: #fff;
+                    border: 1px solid #e0e0e0;
+                    border-radius: 6px;
+                    overflow: hidden;
+                    margin: 30px 0;
+                    box-shadow: 0 2px 5px rgba(0,0,0,0.03);
+                }
+                
+                .doc-card { padding: 25px; background: white; text-align: center; }
+                .doc-card h3 { margin: 0 0 10px 0; font-size: 12px; color: #888; text-transform: uppercase; letter-spacing: 1px; }
+                .doc-card .doc-name { font-weight: 600; color: var(--primary); font-size: 16px; word-break: break-all; }
+                
+                .vs-badge {
+                    background: #f8f8f8;
+                    color: #999;
+                    display: flex;
+                    align-items: center;
+                    justify-content: center;
+                    font-weight: bold;
+                    font-size: 14px;
+                    border-left: 1px solid #eee;
+                    border-right: 1px solid #eee;
+                }
+                
+                /* ANALYSIS TABLES (MARKDOWN RENDERED) */
+                table {
+                    width: 100%;
+                    border-collapse: collapse;
+                    font-size: 13px;
+                    margin: 20px 0;
+                    border: 1px solid #e0e0e0;
+                    font-family: 'Segoe UI', sans-serif;
+                }
+                
+                th {
+                    background-color: var(--primary);
+                    color: white;
+                    text-align: left;
+                    padding: 12px 15px;
+                    font-weight: 500;
+                    letter-spacing: 0.5px;
+                }
+                
+                td {
+                    padding: 12px 15px;
+                    border-bottom: 1px solid #f0f0f0;
+                    vertical-align: top;
+                    color: #444;
+                }
+                
+                tr:last-child td { border-bottom: none; }
+                tr:nth-child(even) { background-color: #fafafa; }
+                
+                /* TQ TABLE SPECIAL STYLING */
+                .tq-table { margin-top: 10px; border: 1px solid #ccc; }
+                .tq-table th { background-color: #444 !important; }
+                .tq-id { font-family: 'Consolas', monospace; font-weight: bold; color: var(--primary); }
+                
+                /* PRINT OPS */
+                @media print {
+                    body { background: white; font-size: 12px; }
+                    .container { box-shadow: none; margin: 0; width: 100%; max-width: 100%; min-height: 0; }
+                    header { padding: 20px 0; border-bottom: 2px solid black; }
+                    header * { color: black !important; background: transparent !important; }
+                    .section { padding: 20px 0; page-break-inside: avoid; }
+                }
+            </style>
+        </head>
+        <body>
+            <div class="container">
+                <header>
+                    <div class="brand">
+                        <h1>Engineering Compliance Audit</h1>
+                        <div class="subtitle">Automated Gap Analysis & Requirement Validation</div>
+                    </div>
+                    <div class="meta-box">
+                        <strong>Project Ref:</strong> PROJ-001<br>
+                        <strong>Date:</strong> 2026-01-09 14:19:26<br>
+                        <strong>Generated By:</strong> PyRAG Agent
+                    </div>
+                </header>
+                
+                <div class="section">
+                    <h2>Executive Summary</h2>
+                    <p>This report details the findings of an automated compliance comparison between the primary reference document and the target verification document. Special attention has been given to numeric parameters, standard citations, and mandatory constraints ("shall"/"must").</p>
+                    
+                    <div class="comparison-grid">
+                        <div class="doc-card">
+                            <h3>Reference Document</h3>
+                            <div class="doc-name">LDA.pdf</div>
+                        </div>
+                        <div class="vs-badge">VS</div>
+                        <div class="doc-card">
+                            <h3>Target Document</h3>
+                            <div class="doc-name">EDC - ELECTRICAL PARTICULAR SCOPE OF WORKS.pdf</div>
+                        </div>
+                    </div>
+                    
+                    <p><strong>Total Topics Analyzed:</strong> 10</p>
+                </div>
+                
+                <div class="section">
+                    <h2>Detailed Compliance Matrix</h2>
+        
+                    <div class="topic-block">
+                        <div class="topic-header">Access Control</div>
+                        <div class="analysis-content">
+                            <h3>1. Analysis Summary</h3>
+<ul>
+<li><strong>Conflict</strong>: A significant conflict exists regarding the <strong>Access Control System Architecture</strong>. Document A (LDA) specifies a <strong>distributed architecture</strong> where access decisions are made locally at Intelligent System Controllers (ISCs). Document B (EDC) does not specify the architecture, but its requirement for the system to be controlled from an "existing security room dedicated PC based system already on site" implies a more centralized control model. This is a fundamental design conflict.</li>
+<li><strong>Alignment</strong>: Both documents are well-aligned on core functional requirements for Access Control and Intercom systems. Key agreements include: the need for fire alarm interface to release doors, integration between intercom and access control systems, provision of vandal-resistant (IK10) external intercom units, and the use of IP-based CCTV systems covering public areas.</li>
+</ul>
+<h3>2. Engineering Deltas (Parametric Comparison)</h3>
+<table>
+<thead>
+<tr>
+<th>Parameter</th>
+<th>LDA.pdf (Base)</th>
+<th>EDC - ELECTRICAL PARTICULAR SCOPE OF WORKS.pdf (Comp)</th>
+<th>Status</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Door Thickness</td>
+<td>44 mm (solid core)</td>
+<td>Not Specified</td>
+<td>ℹ️ B is silent</td>
+</tr>
+<tr>
+<td>Kickplate Height</td>
+<td>150mm min</td>
+<td>Not Specified</td>
+<td>ℹ️ B is silent</td>
+</tr>
+<tr>
+<td>Service Void Height (to avoid extra detectors)</td>
+<td>Avoid below 800mm</td>
+<td>Not Specified</td>
+<td>ℹ️ B is silent</td>
+</tr>
+<tr>
+<td>Mat Depth</td>
+<td>1.5m min</td>
+<td>Not Specified</td>
+<td>ℹ️ B is silent</td>
+</tr>
+<tr>
+<td>SVP/Vent Height above Roof (Standard)</td>
+<td>300mm</td>
+<td>Not Specified</td>
+<td>ℹ️ B is silent</td>
+</tr>
+<tr>
+<td>SVP/Vent Height above Roof (near openings)</td>
+<td>900mm</td>
+<td>Not Specified</td>
+<td>ℹ️ B is silent</td>
+</tr>
+<tr>
+<td>Structured Cabling Frequency/Data Rate</td>
+<td>Up to 500MHz / 10Gbit/s</td>
+<td>Cat 6A F-UTP (implied ~500MHz/10Gbit/s)</td>
+<td>✅ Aligned (Implied)</td>
+</tr>
+<tr>
+<td>Structured Cabling Channel Length</td>
+<td>100m</td>
+<td>Not Specified</td>
+<td>ℹ️ B is silent</td>
+</tr>
+<tr>
+<td>CCTV Cable Type</td>
+<td>Category 6A</td>
+<td>Shielded Cat 6A F-UTP LSZH</td>
+<td>✅ Aligned</td>
+</tr>
+<tr>
+<td>CCTV Cable Length Limit (Copper)</td>
+<td>Not Specified</td>
+<td>90m (beyond requires fibre/booster)</td>
+<td>ℹ️ A is silent</td>
+</tr>
+<tr>
+<td>External Intercom Rating</td>
+<td>IP54 &amp; IK10</td>
+<td>IK10 (material: stainless steel)</td>
+<td>⚠️ Partial Conflict (B omits IP rating)</td>
+</tr>
+<tr>
+<td>Internal Camera Resolution</td>
+<td>Not Specified</td>
+<td>3MP</td>
+<td>ℹ️ A is silent</td>
+</tr>
+<tr>
+<td>Internal Camera Low-Light Performance</td>
+<td>Not Specified</td>
+<td>1 lux</td>
+<td>ℹ️ A is silent</td>
+</tr>
+<tr>
+<td>External Camera Low-Light Performance</td>
+<td>Not Specified</td>
+<td>0.1 to 0.4 lux</td>
+<td>ℹ️ A is silent</td>
+</tr>
+<tr>
+<td>External Camera Housing Rating</td>
+<td>Not Specified</td>
+<td>IP67</td>
+<td>ℹ️ A is silent</td>
+</tr>
+<tr>
+<td>RCD Rating</td>
+<td>30mA</td>
+<td>Not Specified</td>
+<td>ℹ️ B is silent</td>
+</tr>
+<tr>
+<td>RCBO Short Circuit Capacity</td>
+<td>9kA</td>
+<td>Not Specified</td>
+<td>ℹ️ B is silent</td>
+</tr>
+<tr>
+<td>Sub-Distribution Switchboard Form</td>
+<td>Not Specified</td>
+<td>Form 4b (A specifies Form 3b for a different assembly)</td>
+<td>ℹ️ Different assemblies</td>
+</tr>
+<tr>
+<td>External Lighting RCBO Height Trigger</td>
+<td>Not Specified</td>
+<td>&lt; 2.8m AFFL</td>
+<td>ℹ️ A is silent</td>
+</tr>
+<tr>
+<td>Generator Noise @ 1m / 7m</td>
+<td>79 dB(A) / 69 dB(A)</td>
+<td>Not Specified</td>
+<td>ℹ️ B is silent</td>
+</tr>
+</tbody>
+</table>
+<h3>3. Action Items (Draft TQ)</h3>
+<ol>
+<li><strong>TQ-AC-01: Access Control System Architecture</strong><ul>
+<li><strong>Query</strong>: Document A (Performance Spec) requires a distributed access control architecture with local decision-making at Intelligent System Controllers (ISCs). Document B (Electrical Scope) references control from an existing centralized PC-based system. Please clarify the required system architecture. Should the system be distributed per LDA, or is a centralized client-server model acceptable? This decision impacts hardware selection, network design, and software.</li>
+</ul>
+</li>
+<li><strong>TQ-AC-02: External Intercom Weather Rating</strong><ul>
+<li><strong>Query</strong>: Document A specifies external intercom units shall be IP54 rated. Document B specifies IK10 and stainless steel but omits the IP rating. Please confirm if the IP54 rating from Document A is required for all external intercom units.</li>
+</ul>
+</li>
+<li><strong>TQ-AC-03: Performance Specification Gaps in Electrical Scope</strong><ul>
+<li><strong>Query</strong>: Document A includes numerous performance parameters (e.g., door hardware specs, 30mA RCDs, 9kA RCBOs, generator noise levels) not explicitly repeated in Document B's electrical scope. Please confirm that the Electrical Contractor is required to comply with all relevant performance criteria from Document A, even if not restated in Document B.</li>
+</ul>
+</li>
+</ol>
+                        </div>
+                    </div>
+            
+                    <div class="topic-block">
+                        <div class="topic-header">BMS</div>
+                        <div class="analysis-content">
+                            <h3>1. Analysis Summary</h3>
+<ul>
+<li><strong>Conflict</strong>: No direct contradictions were identified. Both documents are largely complementary, with Document A (LDA) providing high-level performance and system integration requirements, and Document B (EDC) detailing the electrical contractor's specific scope of works to implement those requirements.</li>
+<li><strong>Alignment</strong>: Strong agreement on core principles: integration of systems (BMS, Fire Alarm, Access Control, Intercom), compliance with statutory regulations, and the requirement for specialist involvement (controls specialist, lighting control vendor). Both specify that the Access Control/Intercom systems must be integrated and that the fire alarm must disable access control.</li>
+</ul>
+<h3>2. Engineering Deltas (Parametric Comparison)</h3>
+<table>
+<thead>
+<tr>
+<th>Parameter</th>
+<th>LDA.pdf (Base)</th>
+<th>EDC - ELECTRICAL PARTICULAR SCOPE OF WORKS.pdf (Comp)</th>
+<th>Status</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Dead Band (Heating/Cooling)</td>
+<td>20C</td>
+<td>Not Specified</td>
+<td>ℹ️ Base only</td>
+</tr>
+<tr>
+<td>Generator Noise @ 1m</td>
+<td>79 dbA</td>
+<td>Not Specified</td>
+<td>ℹ️ Base only</td>
+</tr>
+<tr>
+<td>Generator Noise @ 7m</td>
+<td>69 dbA</td>
+<td>Not Specified</td>
+<td>ℹ️ Base only</td>
+</tr>
+<tr>
+<td>Monitor Refresh Rate</td>
+<td>120Hz</td>
+<td>Not Specified</td>
+<td>ℹ️ Base only</td>
+</tr>
+<tr>
+<td>Control Signal Output</td>
+<td>Not Specified</td>
+<td>0 - 10V</td>
+<td>ℹ️ Comp only</td>
+</tr>
+<tr>
+<td>AV Unit Supply Voltage</td>
+<td>Not Specified</td>
+<td>230/24V</td>
+<td>ℹ️ Comp only</td>
+</tr>
+<tr>
+<td>Mechanical Load Isolator Rating</td>
+<td>Not Specified</td>
+<td>&gt;2kW</td>
+<td>ℹ️ Comp only</td>
+</tr>
+<tr>
+<td>Power/Signal Cable Separation</td>
+<td>Not Specified</td>
+<td>&gt;50mm</td>
+<td>ℹ️ Comp only</td>
+</tr>
+</tbody>
+</table>
+<h3>3. Action Items (Draft TQ)</h3>
+<ul>
+<li><strong>TQ-01: Clarification of Technical Parameters</strong>: Document B (EDC Scope) provides specific electrical and installation parameters (e.g., 0-10V control signal, 50mm cable separation) which are not contradicted by Document A. To ensure full compliance, please confirm that these parameters from the EDC scope are acceptable for meeting the performance requirements outlined in the LDA specification, particularly for BMS, lighting, and mechanical controls integration.</li>
+</ul>
+                        </div>
+                    </div>
+            
+                    <div class="topic-block">
+                        <div class="topic-header">Electrical</div>
+                        <div class="analysis-content">
+                            <h3>1. Analysis Summary</h3>
+<ul>
+<li><strong>Conflict</strong>: A significant conflict exists regarding the <strong>Form Classification of Sub-Distribution Boards</strong>. Document A (LDA) specifies <strong>Form 3b</strong> for Sub-Distribution Boards, while Document B (EDC) specifies <strong>Form 4b</strong> for Sub-Distribution Switchboards. Form 4b offers a higher degree of internal separation and protection than Form 3b. This is a critical specification discrepancy that must be resolved.</li>
+<li><strong>Alignment</strong>: There is strong alignment on core regulatory compliance (IS 10101, BCAR, CPR), cable containment standards, and specific technical details such as the 200mm clipping requirement near glands, the 25% spare capacity on distribution boards, and the use of 30mA RCDs/RCBOs for socket circuits.</li>
+</ul>
+<h3>2. Engineering Deltas (Parametric Comparison)</h3>
+<table>
+<thead>
+<tr>
+<th>Parameter</th>
+<th>LDA.pdf (Base)</th>
+<th>EDC - ELECTRICAL PARTICULAR SCOPE OF WORKS.pdf (Comp)</th>
+<th>Status</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Residential Unit Supply</td>
+<td>80A/63A single-phase</td>
+<td>Not explicitly stated</td>
+<td>❓ Missing in B</td>
+</tr>
+<tr>
+<td>Main LV Switchboard Fault Level</td>
+<td>65kA for 1.0 sec</td>
+<td>Not explicitly stated</td>
+<td>❓ Missing in B</td>
+</tr>
+<tr>
+<td>Sub-Distribution Board Fault Level</td>
+<td>25kA for 1.0 sec</td>
+<td>Not explicitly stated</td>
+<td>❓ Missing in B</td>
+</tr>
+<tr>
+<td>Sub-Distribution Board Form Classification</td>
+<td>Form 3b</td>
+<td>Form 4b</td>
+<td>⚠️ <strong>Critical Conflict</strong></td>
+</tr>
+<tr>
+<td>RCBO Short Circuit Capacity</td>
+<td>9kA</td>
+<td>Not explicitly stated</td>
+<td>❓ Missing in B</td>
+</tr>
+<tr>
+<td>EV Charger Rating</td>
+<td>230V, 7.0kW</td>
+<td>32A 3-phase (approx. 22kW)</td>
+<td>⚠️ <strong>Conflict / Different Spec</strong></td>
+</tr>
+<tr>
+<td>Socket Outlets per Circuit (Resi)</td>
+<td>Max 6 twin sockets</td>
+<td>Max 6 single sockets</td>
+<td>⚠️ <strong>Conflict (Twin vs. Single)</strong></td>
+</tr>
+<tr>
+<td>Cooker Cable Size</td>
+<td>10.0 sq.mm</td>
+<td>Not explicitly stated</td>
+<td>❓ Missing in B</td>
+</tr>
+<tr>
+<td>Access Control Relay Voltage</td>
+<td>12V AC</td>
+<td>Not explicitly stated</td>
+<td>❓ Missing in B</td>
+</tr>
+<tr>
+<td>CCTV Cable Type</td>
+<td>Cat 6A</td>
+<td>Cat 6A F-UTP Cca</td>
+<td>✅ Agreement</td>
+</tr>
+<tr>
+<td>PV Inverter Rating</td>
+<td>75-80% of array rating</td>
+<td>Not explicitly stated</td>
+<td>❓ Missing in B</td>
+</tr>
+<tr>
+<td>PV Inverter Efficiency</td>
+<td>&gt;90%</td>
+<td>Not explicitly stated</td>
+<td>❓ Missing in B</td>
+</tr>
+<tr>
+<td>Switchgear Sheet Metal Thickness</td>
+<td>Not explicitly stated</td>
+<td>Frame: 2.5mm; Panels: 1.5mm</td>
+<td>ℹ️ Specified in B only</td>
+</tr>
+<tr>
+<td>Switchgear Ingress Protection (IP)</td>
+<td>IP41</td>
+<td>IP44 (General), IP3X (Gland Plate)</td>
+<td>⚠️ <strong>Conflict (IP Rating)</strong></td>
+</tr>
+<tr>
+<td>Anti-Condensation Heater Supply</td>
+<td>Not explicitly stated</td>
+<td>240V, 50Hz</td>
+<td>ℹ️ Specified in B only</td>
+</tr>
+<tr>
+<td>Meter BMS Output</td>
+<td>Not explicitly stated</td>
+<td>0-10V</td>
+<td>ℹ️ Specified in B only</td>
+</tr>
+<tr>
+<td>Sub-main Cable Bend Radius</td>
+<td>Not explicitly stated</td>
+<td>8 x cable diameter</td>
+<td>ℹ️ Specified in B only</td>
+</tr>
+<tr>
+<td>Cable Tie Interval (Tray)</td>
+<td>Per detailed table</td>
+<td>Max 500mm</td>
+<td>ℹ️ Specified in B only</td>
+</tr>
+<tr>
+<td>Apartment EAHP Isolator Distance</td>
+<td>Not explicitly stated</td>
+<td>Max 1m from unit</td>
+<td>ℹ️ Specified in B only</td>
+</tr>
+<tr>
+<td>Apartment Cooker Switch Rating</td>
+<td>Not explicitly stated</td>
+<td>Min. 45A DP</td>
+<td>ℹ️ Specified in B only</td>
+</tr>
+<tr>
+<td>Lighting Control Switch Rating</td>
+<td>Not explicitly stated</td>
+<td>20A</td>
+<td>ℹ️ Specified in B only</td>
+</tr>
+<tr>
+<td>Apartment Lighting Cable Size</td>
+<td>Not explicitly stated</td>
+<td>1.5mm²</td>
+<td>ℹ️ Specified in B only</td>
+</tr>
+<tr>
+<td>BMS Signal/Power Cable Separation</td>
+<td>Not explicitly stated</td>
+<td>Min. 50mm</td>
+<td>ℹ️ Specified in B only</td>
+</tr>
+<tr>
+<td>Lift Supply</td>
+<td>Not explicitly stated</td>
+<td>63A 3ph + 3 core</td>
+<td>ℹ️ Specified in B only</td>
+</tr>
+<tr>
+<td>Generator Battery Voltage</td>
+<td>Not explicitly stated</td>
+<td>24V</td>
+<td>ℹ️ Specified in B only</td>
+</tr>
+<tr>
+<td>TV Power Spur</td>
+<td>Not explicitly stated</td>
+<td>230V 13A</td>
+<td>ℹ️ Specified in B only</td>
+</tr>
+<tr>
+<td>TV Cable Length</td>
+<td>Not explicitly stated</td>
+<td>&lt;50m</td>
+<td>ℹ️ Specified in B only</td>
+</tr>
+</tbody>
+</table>
+<h3>3. Action Items (Draft TQ)</h3>
+<ol>
+<li>
+<p><strong>TQ-01: Sub-Distribution Board Form Classification</strong></p>
+<ul>
+<li><strong>Query:</strong> Document A (LDA Performance Spec) requires Sub-Distribution Boards to be Form 3b (IS EN 61439-2). Document B (EDC Scope of Works) requires Sub-Distribution Switchboards to be Form 4b. Form 4b provides a higher level of internal separation. Please confirm which Form classification is required for the project, as this has cost and design implications.</li>
+</ul>
+</li>
+<li>
+<p><strong>TQ-02: EV Charging Point Specification</strong></p>
+<ul>
+<li><strong>Query:</strong> Document A specifies 230V, 7.0kW (single-phase) EV charging units. Document B specifies units capable of delivering 32A 3-phase power (approx. 22kW). Please clarify the definitive specification for the Electric Vehicle charging units to be installed.</li>
+</ul>
+</li>
+<li>
+<p><strong>TQ-03: Socket Circuit Design (Residential)</strong></p>
+<ul>
+<li><strong>Query:</strong> Document A limits circuits to 6 No. twin socket outlets. Document B limits circuits to 6 No. single socket outlets. A twin socket is typically considered as two outlets. Please confirm the design basis for the maximum number of outlets per final socket circuit in residential units.</li>
+</ul>
+</li>
+<li>
+<p><strong>TQ-04: Switchgear IP Rating &amp; LV Board Fault Levels</strong></p>
+<ul>
+<li><strong>Query:</strong> Document A specifies IP41 for LV switchgear. Document B specifies a minimum of IP44, with gland plates maintaining IP3X. Furthermore, Document A specifies fault levels for Main (65kA) and Sub-Distribution (25kA) boards, which are absent in Document B. Please confirm the required IP rating and the design fault levels for all LV switchboards to ensure correct equipment specification.</li>
+</ul>
+</li>
+</ol>
+                        </div>
+                    </div>
+            
+                    <div class="topic-block">
+                        <div class="topic-header">Fire Safety</div>
+                        <div class="analysis-content">
+                            <h3>1. Analysis Summary</h3>
+<ul>
+<li><strong>Conflict</strong>: The fire alarm system standards are in conflict. Document A (LDA) mandates compliance with <strong>EN54</strong> series (including EN54-13) and references <strong>BS 5839-6</strong> for residential units. Document B (EDC) mandates compliance with <strong>IS 3218: 2013 + A1: 2019</strong>. While IS 3218 is based on EN54, it is the specific Irish National Standard. The documents do not clarify which standard takes precedence, creating a potential specification conflict.</li>
+<li><strong>Alignment</strong>: There is strong agreement on core fire safety principles: segregation of fire-resistant cables, 60-minute fire-rated electrical enclosures, fire alarm system disabling access control, and the requirement for all works to comply with statutory regulations (Building Regulations, BCAR, Fire Officer Requirements).</li>
+</ul>
+<h3>2. Engineering Deltas (Parametric Comparison)</h3>
+<table>
+<thead>
+<tr>
+<th>Parameter</th>
+<th>LDA.pdf (Base)</th>
+<th>EDC - ELECTRICAL PARTICULAR SCOPE OF WORKS.pdf (Comp)</th>
+<th>Status</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Fire Blanket Size</td>
+<td>1.2m by 1.8m</td>
+<td>Not Specified</td>
+<td>⚠️ B is missing requirement</td>
+</tr>
+<tr>
+<td>Service Void Height (to avoid extra detection)</td>
+<td>800mm</td>
+<td>Not Specified</td>
+<td>⚠️ B is missing requirement</td>
+</tr>
+<tr>
+<td>Smoke Duct Termination Distance</td>
+<td>5 metres from escapes/air intakes</td>
+<td>Not Specified</td>
+<td>⚠️ B is missing requirement</td>
+</tr>
+<tr>
+<td>Smoke Duct Fire Rating</td>
+<td>60 mins Integrity &amp; Insulation</td>
+<td>Not Specified</td>
+<td>⚠️ B is missing requirement</td>
+</tr>
+<tr>
+<td>Main LV Switchboard Fault Level</td>
+<td>65kA for 1.0 second</td>
+<td>Not Specified for Main Board (See Sub-Board)</td>
+<td>⚠️ B is missing requirement</td>
+</tr>
+<tr>
+<td>Sub-Distribution Switchboard Fault Level</td>
+<td>25kA for 1.0 second (Form 3b)</td>
+<td>Not Specified (Form 4b specified)</td>
+<td>⚠️ Specification Mismatch</td>
+</tr>
+<tr>
+<td>RCD Rating</td>
+<td>30mA, 9kA SCCB</td>
+<td>Not Specified</td>
+<td>⚠️ B is missing requirement</td>
+</tr>
+<tr>
+<td>Linear Heat Detection Air Gap</td>
+<td>Not Specified</td>
+<td>Min 25mm &amp; Max 150mm from ceiling</td>
+<td>✅ B adds detail</td>
+</tr>
+<tr>
+<td>Cable Fire Performance (General)</td>
+<td>Dca – S2, d2, a2 (min)</td>
+<td>Dca (min)</td>
+<td>⚠️ A is more specific</td>
+</tr>
+<tr>
+<td>Fire Alarm Cable Rating</td>
+<td>Not Specified</td>
+<td>120 minute enhanced grade</td>
+<td>✅ B adds detail</td>
+</tr>
+</tbody>
+</table>
+<h3>3. Action Items (Draft TQ)</h3>
+<p><strong>Technical Query: Fire Alarm System Standard and Key Parameter Omissions</strong>
+1.  <strong>Standard Conflict</strong>: The specifications reference different primary standards for the fire alarm system (EN54/BS 5839 vs. IS 3218). Please confirm the governing standard for system design, installation, and certification.
+2.  <strong>Missing Parameters</strong>: Document B's electrical scope omits several key fire safety parameters defined in Document A, including fire blanket size, smoke duct ratings, and critical electrical protection device ratings (e.g., RCD 30mA/9kA). Please confirm if these requirements from Document A are to be included in the electrical works or are the responsibility of another trade, and update Document B accordingly.
+3.  <strong>Fault Level Specification</strong>: Clarify the required fault level (kA) for the Main LV and Sub-Distribution Switchboards, as there is a discrepancy between the documents.</p>
+                        </div>
+                    </div>
+            
+                    <div class="topic-block">
+                        <div class="topic-header">Lifts</div>
+                        <div class="analysis-content">
+                            <h3>1. Analysis Summary</h3>
+<ul>
+<li><strong>Conflict</strong>: No direct contradictions identified. Document A (LDA) assigns responsibility for lift-related wiring interfaces to the Developer's design team. Document B (EDC) assigns specific wiring and coordination tasks to the Electrical Contractor. This creates a potential <strong>responsibility overlap/interface risk</strong> regarding who is ultimately responsible for the design, provision, and coordination of all lift-associated wiring and attendances.</li>
+<li><strong>Alignment</strong>: Both documents implicitly agree that extensive electrical and control system interfaces are required for the lift installation. Document B provides specific electrical requirements (e.g., air sampling detection, dedicated phone lines, power supply) that support the overall performance requirement stated in Document A.</li>
+</ul>
+<h3>2. Engineering Deltas (Parametric Comparison)</h3>
+<table>
+<thead>
+<tr>
+<th>Parameter</th>
+<th>LDA.pdf (Base)</th>
+<th>EDC - ELECTRICAL PARTICULAR SCOPE OF WORKS.pdf (Comp)</th>
+<th>Status</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Lift Car Internal Dimension (Approx.)</td>
+<td>1100 x 2100mm</td>
+<td>Not Specified</td>
+<td>ℹ️ Only in Base Doc</td>
+</tr>
+<tr>
+<td>Lift Power Supply Rating</td>
+<td>Not Specified</td>
+<td>63A 3ph</td>
+<td>ℹ️ Only in Comp Doc</td>
+</tr>
+</tbody>
+</table>
+<h3>3. Action Items (Draft TQ)</h3>
+<ul>
+<li><strong>TQ-001 - Responsibility for Lift Wiring Interfaces</strong>: Documents A (4.15.1) and B (22) assign responsibility for lift-associated wiring and coordination to different parties (Developer's team vs. Electrical Contractor). Please clarify the single point of responsibility for the design, provision, and coordination of all wiring, controls points, and attendances between the lift system, mechanical services, and electrical installations to avoid gaps or duplication.</li>
+</ul>
+                        </div>
+                    </div>
+            
+                    <div class="topic-block">
+                        <div class="topic-header">Lighting</div>
+                        <div class="analysis-content">
+                            <h3>1. Analysis Summary</h3>
+<ul>
+<li><strong>Conflict</strong>: A significant conflict exists regarding the <strong>cable type and containment for lighting circuits in residential units</strong>. LDA specifies <strong>2.5/4.0mm² PVC singles in hard-drawn PVC conduit</strong>. EDC specifies <strong>1.5mm² NHXMH-J/Twin and Earth cable</strong> (with no explicit containment requirement for within apartments). These are fundamentally different wiring systems.</li>
+<li><strong>Alignment</strong>: Both documents are well-aligned on high-level principles: compliance with SLL/EN 12464 standards, use of LED luminaires, the need for formal lighting design submissions, and the requirement for a certified, specialist-installed emergency lighting system.</li>
+</ul>
+<h3>2. Engineering Deltas (Parametric Comparison)</h3>
+<table>
+<thead>
+<tr>
+<th>Parameter</th>
+<th>LDA.pdf (Base)</th>
+<th>EDC - ELECTRICAL PARTICULAR SCOPE OF WORKS.pdf (Comp)</th>
+<th>Status</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>Lighting Circuit MCB Rating</strong></td>
+<td>10A (radial)</td>
+<td>Not specified for apartments</td>
+<td>⚠️ <strong>Missing in B</strong></td>
+</tr>
+<tr>
+<td><strong>Lighting Circuit Cable (Apartments)</strong></td>
+<td>2.5 or 4.0mm² PVC singles in PVC conduit</td>
+<td>1.5mm² NHXMH-J/Twin &amp; Earth</td>
+<td>🚨 <strong>Major Conflict</strong></td>
+</tr>
+<tr>
+<td><strong>LED Test Current (lm output)</strong></td>
+<td>350mA</td>
+<td>Not specified</td>
+<td>⚠️ <strong>Missing in B</strong></td>
+</tr>
+<tr>
+<td><strong>LED Efficacy Target</strong></td>
+<td>125 LL/W (3000K), 135 LL/W (4000K) @700mA</td>
+<td>≥100 lm/W</td>
+<td>⚠️ <strong>A is stricter/specific</strong></td>
+</tr>
+<tr>
+<td><strong>External Light CCT</strong></td>
+<td>3000K maximum</td>
+<td>Not specified</td>
+<td>⚠️ <strong>Missing in B</strong></td>
+</tr>
+<tr>
+<td><strong>Public Lighting Duct Diameter</strong></td>
+<td>125mm</td>
+<td>107mm (min. external)</td>
+<td>🚨 <strong>Conflict</strong></td>
+</tr>
+<tr>
+<td><strong>Switch Rating</strong></td>
+<td>Not specified</td>
+<td>20A</td>
+<td>⚠️ <strong>Missing in A</strong></td>
+</tr>
+<tr>
+<td><strong>Switch Height</strong></td>
+<td>Not specified</td>
+<td>1100mm AFFL</td>
+<td>⚠️ <strong>Missing in A</strong></td>
+</tr>
+<tr>
+<td><strong>External Light RCBO Height Trigger</strong></td>
+<td>Not specified</td>
+<td>&lt;2.8m AFFL</td>
+<td>⚠️ <strong>Missing in A</strong></td>
+</tr>
+<tr>
+<td><strong>External Duct Burial Depth (Urban)</strong></td>
+<td>Not specified</td>
+<td>450mm</td>
+<td>⚠️ <strong>Missing in A</strong></td>
+</tr>
+<tr>
+<td><strong>External Duct Burial Depth (Road)</strong></td>
+<td>Not specified</td>
+<td>750mm</td>
+<td>⚠️ <strong>Missing in A</strong></td>
+</tr>
+<tr>
+<td><strong>External Duct Sand Bed</strong></td>
+<td>Not specified</td>
+<td>50mm below, 25mm sides</td>
+<td>⚠️ <strong>Missing in A</strong></td>
+</tr>
+<tr>
+<td><strong>External Duct Sand Cover</strong></td>
+<td>Not specified</td>
+<td>150mm above</td>
+<td>⚠️ <strong>Missing in A</strong></td>
+</tr>
+<tr>
+<td><strong>Warning Tape Depth</strong></td>
+<td>Not specified</td>
+<td>300mm below grade</td>
+<td>⚠️ <strong>Missing in A</strong></td>
+</tr>
+</tbody>
+</table>
+<h3>3. Action Items (Draft TQ)</h3>
+<p><strong>Technical Query - Lighting Installation in Residential Units</strong>
+<strong>Subject:</strong> Conflict between wiring specifications for apartment lighting circuits.
+<strong>Reference:</strong> LDA.pdf (Section 4) vs. EDC SOW.pdf (Section LIGHTING CONTROLS).
+<strong>Query:</strong>
+Document A (LDA) specifies lighting circuits within residential units are to be wired using "2.5 or 4.0sq.mm PVC insulated cable... in hard drawn round PVC conduit."
+Document B (EDC SOW) specifies "All lighting wiring to be completed using a minimum size of 1.5mm NHXMH-J/Twin and Earth cable."
+These are contradictory specifications for the core wiring methodology.
+<strong>Request for Instruction:</strong> Please confirm which specification shall govern the installation:
+1.  <strong>Option A:</strong> PVC singles in conduit as per LDA.
+2.  <strong>Option B:</strong> Twin &amp; Earth cable as per EDC SOW (if so, please specify required containment, if any).
+3.  <strong>Option C:</strong> A different, clarified specification.</p>
+<p><strong>Technical Query - Public Lighting Ducting</strong>
+<strong>Subject:</strong> Discrepancy in specified duct diameter for public lighting.
+<strong>Reference:</strong> LDA.pdf (Section 56) vs. EDC SOW.pdf (Section 14).
+<strong>Query:</strong>
+LDA specifies "125mm underground ducting" for public lighting.
+EDC SOW specifies a minimum external diameter of "107mm" for external lighting ducting.
+<strong>Request for Instruction:</strong> Please confirm the required nominal diameter for public lighting ducting: 125mm (per LDA) or 107mm (per EDC SOW).</p>
+                        </div>
+                    </div>
+            
+                    <div class="topic-block">
+                        <div class="topic-header">Mechanical/HVAC</div>
+                        <div class="analysis-content">
+                            <h3>1. Analysis Summary</h3>
+<ul>
+<li><strong>Conflict</strong>: No direct technical contradictions were identified. The documents cover complementary scopes: Document A (LDA) defines mechanical/HVAC system design and installation requirements, while Document B (EDC) defines the electrical scope of works, including power supply, bonding, and controls for those mechanical systems. They are interdependent, not conflicting.</li>
+<li><strong>Alignment</strong>: Strong alignment on the need for integrated systems. Document B explicitly lists power and control for HVAC, ventilation, heating, and smoke control systems defined in Document A. Both documents mandate proper commissioning, testing, and maintenance access.</li>
+</ul>
+<h3>2. Engineering Deltas (Parametric Comparison)</h3>
+<table>
+<thead>
+<tr>
+<th>Parameter</th>
+<th>LDA.pdf (Base)</th>
+<th>EDC - ELECTRICAL PARTICULAR SCOPE OF WORKS.pdf (Comp)</th>
+<th>Status</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Pipe Pressure Drop Max</td>
+<td>300 Pa/m</td>
+<td>Not Specified</td>
+<td>✅ Scope Gap</td>
+</tr>
+<tr>
+<td>Pipe Velocity Max</td>
+<td>1.5 m/s</td>
+<td>Not Specified</td>
+<td>✅ Scope Gap</td>
+</tr>
+<tr>
+<td>Branch Pipe to Vent Max Length</td>
+<td>3 m</td>
+<td>Not Specified</td>
+<td>✅ Scope Gap</td>
+</tr>
+<tr>
+<td>SVP/Vent Pipe Height (Standard)</td>
+<td>300 mm above roof</td>
+<td>Not Specified</td>
+<td>✅ Scope Gap</td>
+</tr>
+<tr>
+<td>SVP/Vent Pipe Height (Near Intake)</td>
+<td>900 mm above roof</td>
+<td>Not Specified</td>
+<td>✅ Scope Gap</td>
+</tr>
+<tr>
+<td>Pre-insulated Pipe Max Diameter</td>
+<td>26 mm</td>
+<td>Not Specified</td>
+<td>✅ Scope Gap</td>
+</tr>
+<tr>
+<td>Heating Pipe Grade Threshold</td>
+<td>80 mm</td>
+<td>Not Specified</td>
+<td>✅ Scope Gap</td>
+</tr>
+<tr>
+<td>Heating Pipe Pressure Loss (Header)</td>
+<td>50 Pa/m</td>
+<td>Not Specified</td>
+<td>✅ Scope Gap</td>
+</tr>
+<tr>
+<td>Heating Pipe Pressure Loss (Main)</td>
+<td>200 Pa/m</td>
+<td>Not Specified</td>
+<td>✅ Scope Gap</td>
+</tr>
+<tr>
+<td>Heating Pipe Pressure Loss (Branch)</td>
+<td>150 Pa/m</td>
+<td>Not Specified</td>
+<td>✅ Scope Gap</td>
+</tr>
+<tr>
+<td>Heating/Cooling Dead Band</td>
+<td>2°C</td>
+<td>Not Specified</td>
+<td>✅ Scope Gap</td>
+</tr>
+<tr>
+<td>Door Undercut (Ventilation)</td>
+<td>10 mm</td>
+<td>Not Specified</td>
+<td>✅ Scope Gap</td>
+</tr>
+<tr>
+<td>Dwelling Ventilation Rate (Min)</td>
+<td>52 l/s</td>
+<td>Not Specified</td>
+<td>✅ Scope Gap</td>
+</tr>
+<tr>
+<td>Purge Ventilator Free Area</td>
+<td>0.09 m²</td>
+<td>Not Specified</td>
+<td>✅ Scope Gap</td>
+</tr>
+<tr>
+<td>Tank Room Damper Leakage</td>
+<td>5 m³/m²/hr @ 50 Pa</td>
+<td>Not Specified</td>
+<td>✅ Scope Gap</td>
+</tr>
+<tr>
+<td>Tank Room Damper U-Value</td>
+<td>0.4 W/m²K or better</td>
+<td>Not Specified</td>
+<td>✅ Scope Gap</td>
+</tr>
+<tr>
+<td>Tank Room Fan Flow Rate</td>
+<td>100 l/s</td>
+<td>Not Specified</td>
+<td>✅ Scope Gap</td>
+</tr>
+<tr>
+<td>Smoke Duct Termination Distance</td>
+<td>5 m</td>
+<td>Not Specified</td>
+<td>✅ Scope Gap</td>
+</tr>
+<tr>
+<td>Smoke Duct Fire Rating</td>
+<td>60 min Integrity &amp; Insulation</td>
+<td>Not Specified</td>
+<td>✅ Scope Gap</td>
+</tr>
+<tr>
+<td>Cable Cleat Fixing Centres</td>
+<td>Not Specified</td>
+<td>600 mm</td>
+<td>✅ Scope Gap</td>
+</tr>
+<tr>
+<td>Mechanical Load Isolator Threshold</td>
+<td>Not Specified</td>
+<td>&gt;2 kW</td>
+<td>✅ Scope Gap</td>
+</tr>
+<tr>
+<td>External Lighting Duct Diameter</td>
+<td>Not Specified</td>
+<td>107 mm (min)</td>
+<td>✅ Scope Gap</td>
+</tr>
+<tr>
+<td>External Lighting Duct Wall Thickness</td>
+<td>Not Specified</td>
+<td>5 mm (min)</td>
+<td>✅ Scope Gap</td>
+</tr>
+<tr>
+<td>Sand Bedding Depth (Below)</td>
+<td>Not Specified</td>
+<td>50 mm</td>
+<td>✅ Scope Gap</td>
+</tr>
+<tr>
+<td>Sand Bedding Depth (Sides)</td>
+<td>Not Specified</td>
+<td>25 mm</td>
+<td>✅ Scope Gap</td>
+</tr>
+<tr>
+<td>AOV Power Supply Voltage</td>
+<td>Not Specified</td>
+<td>230/24V</td>
+<td>✅ Scope Gap</td>
+</tr>
+<tr>
+<td>Generator Warranty (Maintenance)</td>
+<td>Not Specified</td>
+<td>10 years</td>
+<td>✅ Scope Gap</td>
+</tr>
+</tbody>
+</table>
+<h3>3. Action Items (Draft TQ)</h3>
+<ul>
+<li><strong>TQ-001: Interface Coordination</strong>: The electrical scope (EDC) requires power and control for all mechanical plant (HVAC, ventilation, pumps, etc.). Confirm that the mechanical design (LDA) has been fully shared with the electrical contractor to allow for accurate load scheduling, isolator sizing, and control point identification. A coordinated schedule of final equipment loads, locations, and control sequences is required.</li>
+<li><strong>TQ-002: Bonding Details</strong>: Document B requires supplementary bonding of radiators, DHWS pipes, and other metallic services. Confirm that the mechanical installation (per Document A) will provide suitable accessible bonding points on all specified items (e.g., radiators, copper pipework) to facilitate this electrical requirement.</li>
+</ul>
+                        </div>
+                    </div>
+            
+                    <div class="topic-block">
+                        <div class="topic-header">Plumbing</div>
+                        <div class="analysis-content">
+                            <h3>1. Analysis Summary</h3>
+<ul>
+<li><strong>Conflict</strong>: No direct contradictions were identified. The documents cover distinct domains (LDA: Plumbing &amp; Building Envelope; EDC: Electrical &amp; Bonding) with complementary requirements. The electrical bonding requirements in Document B for water pipes and metalwork are fully compatible with and support the plumbing integrity goals of Document A.</li>
+<li><strong>Alignment</strong>: Both documents mandate compliance with statutory regulations (Building Regulations, BCAR, etc.). Document B's requirement for equipotential bonding of all water services (mains, DHWS, heating) aligns with and supports the safe and integrated installation of the plumbing systems specified in Document A.</li>
+</ul>
+<h3>2. Engineering Deltas (Parametric Comparison)</h3>
+<table>
+<thead>
+<tr>
+<th>Parameter</th>
+<th>LDA.pdf (Base)</th>
+<th>EDC - ELECTRICAL PARTICULAR SCOPE OF WORKS.pdf (Comp)</th>
+<th>Status</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Waterproofing Upstand</td>
+<td>150mm</td>
+<td>Not Specified</td>
+<td>✅ A Specifies / B Silent</td>
+</tr>
+<tr>
+<td>Laminate Flooring Thickness</td>
+<td>8-10mm</td>
+<td>Not Specified</td>
+<td>✅ A Specifies / B Silent</td>
+</tr>
+<tr>
+<td>Pre-insulated Pipe Max Diameter</td>
+<td>26mm</td>
+<td>Not Specified</td>
+<td>✅ A Specifies / B Silent</td>
+</tr>
+<tr>
+<td>Radiator Steel Thickness</td>
+<td>1.5mm (folded to 3mm total)</td>
+<td>Not Specified</td>
+<td>✅ A Specifies / B Silent</td>
+</tr>
+<tr>
+<td>Hot Water Capacity (Test)</td>
+<td>200L at 40°C</td>
+<td>Not Specified</td>
+<td>✅ A Specifies / B Silent</td>
+</tr>
+<tr>
+<td>Cold Water Legionella Trigger Temp</td>
+<td>20°C</td>
+<td>Not Specified</td>
+<td>✅ A Specifies / B Silent</td>
+</tr>
+<tr>
+<td>Pipe Pressure/Temp Rating</td>
+<td>PN16 @ 70°C</td>
+<td>Not Specified</td>
+<td>✅ A Specifies / B Silent</td>
+</tr>
+</tbody>
+</table>
+<h3>3. Action Items (Draft TQ)</h3>
+<ul>
+<li>No conflicts requiring a Technical Query (TQ) were identified. The documents are complementary. The primary action is to ensure the electrical contractor (working to Document B) coordinates with the plumbing contractor (working to Document A) to ensure all bonding points on water pipes, tanks, and metalwork are accessible and correctly identified during installation.</li>
+</ul>
+                        </div>
+                    </div>
+            
+                    <div class="topic-block">
+                        <div class="topic-header">Sustainability</div>
+                        <div class="analysis-content">
+                            <h3>1. Analysis Summary</h3>
+<ul>
+<li><strong>Conflict</strong>: No direct technical contradictions were identified between the two documents. Document A (LDA) is a high-level design specification with performance and sustainability goals, while Document B (EDC) is a specific electrical scope of works. They operate at different levels of detail.</li>
+<li><strong>Alignment</strong>: Both documents align on the principle of energy monitoring. Document A requires metering for PV production tracking, and Document B mandates energy meters on landlord distribution boards, suggesting a complementary approach to data collection for sustainability reporting.</li>
+</ul>
+<h3>2. Engineering Deltas (Parametric Comparison)</h3>
+<table>
+<thead>
+<tr>
+<th>Parameter</th>
+<th>LDA.pdf (Base)</th>
+<th>EDC - ELECTRICAL PARTICULAR SCOPE OF WORKS.pdf (Comp)</th>
+<th>Status</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Washing Machine Noise</td>
+<td>Max. 49 dB(A)</td>
+<td>Not Specified</td>
+<td>🔶 B is silent / Missing</td>
+</tr>
+<tr>
+<td>Overheating Temp. Threshold</td>
+<td>Bedrooms ≤26°C for &gt;1% of sleeping hours</td>
+<td>Not Specified</td>
+<td>🔶 B is silent / Missing</td>
+</tr>
+<tr>
+<td>Switchboard Fault Level</td>
+<td>25kA for 1.0 second</td>
+<td>Not Specified</td>
+<td>🔶 B is silent / Missing</td>
+</tr>
+<tr>
+<td>RCD Rating</td>
+<td>30mA, 9kA breaking capacity</td>
+<td>Not Specified</td>
+<td>🔶 B is silent / Missing</td>
+</tr>
+<tr>
+<td>PV Panel Warranty</td>
+<td>25-year performance, 10-year product</td>
+<td>Not Specified</td>
+<td>🔶 B is silent / Missing</td>
+</tr>
+</tbody>
+</table>
+<h3>3. Action Items (Draft TQ)</h3>
+<ul>
+<li><strong>TQ-01: Integration of Performance Specifications into Electrical Scope</strong><ul>
+<li><strong>Query</strong>: Document A (LDA) specifies key performance parameters (e.g., 49 dB(A) for appliances, 30mA/9kA RCBOs, 25kA switchboard fault level, PV warranty terms). Document B (EDC), the electrical scope, does not reference these requirements. Please confirm that all equipment selection, submittals, and installations under the EDC scope will be fully compliant with the performance and warranty criteria stipulated in the LDA.</li>
+</ul>
+</li>
+</ul>
+                        </div>
+                    </div>
+            
+                    <div class="topic-block">
+                        <div class="topic-header">General Requirements</div>
+                        <div class="analysis-content">
+                            <h3>1. Analysis Summary</h3>
+<ul>
+<li><strong>Conflict</strong>: The documents establish different hierarchies for resolving conflicts between specifications and standards. <strong>Document A (LDA)</strong> states that in the event of inconsistency, the LDA Apartment Typology Booklet prevails, and the Technical Monitor's direction is conclusive. <strong>Document B (EDC)</strong> states that in the event of conflict, the requirements of Irish standards and regulations shall prevail over the specification itself. This creates a potential conflict over which authority (a specific booklet/monitor vs. national standards) is supreme when requirements clash.</li>
+<li><strong>Alignment</strong>: Both documents strongly emphasize compliance with Irish Standards, Building Regulations, and Technical Guidance Documents. They also align on the requirement for a complete, fit-for-purpose installation and the need for proper testing, commissioning, and handover of documentation (O&amp;M manuals, safety files, as-installed drawings).</li>
+</ul>
+<h3>2. Engineering Deltas (Parametric Comparison)</h3>
+<table>
+<thead>
+<tr>
+<th>Parameter</th>
+<th>LDA.pdf (Base)</th>
+<th>EDC - ELECTRICAL PARTICULAR SCOPE OF WORKS.pdf (Comp)</th>
+<th>Status</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Data Cable Run Max Length</td>
+<td>Not Specified</td>
+<td>90m</td>
+<td>✅ B adds a specific requirement</td>
+</tr>
+<tr>
+<td>Structured Cabling Category</td>
+<td>Not Specified</td>
+<td>Cat 6a</td>
+<td>✅ B adds a specific requirement</td>
+</tr>
+<tr>
+<td>Lightning Conductor Tape Size</td>
+<td>Not Specified</td>
+<td>25mm x 3mm</td>
+<td>✅ B adds a specific requirement</td>
+</tr>
+<tr>
+<td>Roof Conductor Tape Fixing Interval</td>
+<td>Not Specified</td>
+<td>1.20m max</td>
+<td>✅ B adds a specific requirement</td>
+</tr>
+<tr>
+<td>EV Charger Panel Spare Capacity</td>
+<td>Not Specified</td>
+<td>Spare for 5no 32A 3ph RCBOs</td>
+<td>✅ B adds a specific requirement</td>
+</tr>
+<tr>
+<td>Submain Cable Voltage Grade</td>
+<td>Not Specified</td>
+<td>Min 1000V</td>
+<td>✅ B adds a specific requirement</td>
+</tr>
+<tr>
+<td>TV Cable Slack at Outlet</td>
+<td>Not Specified</td>
+<td>2 metres</td>
+<td>✅ B adds a specific requirement</td>
+</tr>
+<tr>
+<td><strong>Conflict Resolution Hierarchy</strong></td>
+<td>LDA Typology Booklet &amp; Tech Monitor prevail</td>
+<td>Irish Standards &amp; Regulations prevail</td>
+<td>⚠️ <strong>Critical Conflict</strong> - Contradictory primacy rules.</td>
+</tr>
+</tbody>
+</table>
+<h3>3. Action Items (Draft TQ)</h3>
+<ul>
+<li><strong>TQ-001 - Specification Conflict Hierarchy</strong>: Document A (LDA Specification, Section 1.1) states that the LDA Apartment Typology Booklet prevails in case of inconsistency and the Technical Monitor's direction is conclusive. Document B (EDC Electrical Scope, IMPORTANT NOTICE) states that Irish Standards and Regulations prevail over the specification in case of conflict. Please clarify the definitive order of precedence for the project to resolve potential conflicts between: 1) Irish Standards/Regulations, 2) the LDA Apartment Typology Booklet, 3) the LDA Specification, 4) the EDC Electrical Scope, and 5) the direction of the Technical Monitor.</li>
+</ul>
+                        </div>
+                    </div>
+            
+                </div>
+                
+                <div class="section">
+                    <h2>Technical Queries (TQs)</h2>
+                    <p>The following potential Technical Queries have been identified based on conflicting requirements.</p>
+                    <div style="background:#fff3cd; color:#856404; padding:15px; border:1px solid #ffeeba; border-radius:4px; margin-bottom: 20px;">
+                        <strong>Note:</strong> Verify all TQs against latest project correspondence before issuing.
+                    </div>
+                    
+            <table class="tq-table" style="width:100%; border-collapse: collapse; margin-top:20px;">
+                <thead>
+                    <tr style="background-color: #856404; color: white;">
+                        <th>ID</th>
+                        <th>Subject / Topic</th>
+                        <th>Query Description</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    
+                <tr>
+                    <td style="width: 50px; text-align: center;"><strong>TQ-001</strong></td>
+                    <td style="width: 200px;">Access Control</td>
+                    <td><ol>
+<li><strong>TQ-AC-01: Access Control System Architecture</strong><ul>
+<li><strong>Query</strong>: Document A (Performance Spec) requires a distributed access control architecture with local decision-making at Intelligent System Controllers (ISCs). Document B (Electrical Scope) references control from an existing centralized PC-based system. Please clarify the required system architecture. Should the system be distributed per LDA, or is a centralized client-server model acceptable? This decision impacts hardware selection, network design, and software.</li>
+</ul>
+</li>
+<li><strong>TQ-AC-02: External Intercom Weather Rating</strong><ul>
+<li><strong>Query</strong>: Document A specifies external intercom units shall be IP54 rated. Document B specifies IK10 and stainless steel but omits the IP rating. Please confirm if the IP54 rating from Document A is required for all external intercom units.</li>
+</ul>
+</li>
+<li><strong>TQ-AC-03: Performance Specification Gaps in Electrical Scope</strong><ul>
+<li><strong>Query</strong>: Document A includes numerous performance parameters (e.g., door hardware specs, 30mA RCDs, 9kA RCBOs, generator noise levels) not explicitly repeated in Document B's electrical scope. Please confirm that the Electrical Contractor is required to comply with all relevant performance criteria from Document A, even if not restated in Document B.</li>
+</ul>
+</li>
+</ol></td>
+                </tr>
+                
+                <tr>
+                    <td style="width: 50px; text-align: center;"><strong>TQ-002</strong></td>
+                    <td style="width: 200px;">BMS</td>
+                    <td><ul>
+<li><strong>TQ-01: Clarification of Technical Parameters</strong>: Document B (EDC Scope) provides specific electrical and installation parameters (e.g., 0-10V control signal, 50mm cable separation) which are not contradicted by Document A. To ensure full compliance, please confirm that these parameters from the EDC scope are acceptable for meeting the performance requirements outlined in the LDA specification, particularly for BMS, lighting, and mechanical controls integration.</li>
+</ul></td>
+                </tr>
+                
+                <tr>
+                    <td style="width: 50px; text-align: center;"><strong>TQ-003</strong></td>
+                    <td style="width: 200px;">Electrical</td>
+                    <td><ol>
+<li>
+<p><strong>TQ-01: Sub-Distribution Board Form Classification</strong></p>
+<ul>
+<li><strong>Query:</strong> Document A (LDA Performance Spec) requires Sub-Distribution Boards to be Form 3b (IS EN 61439-2). Document B (EDC Scope of Works) requires Sub-Distribution Switchboards to be Form 4b. Form 4b provides a higher level of internal separation. Please confirm which Form classification is required for the project, as this has cost and design implications.</li>
+</ul>
+</li>
+<li>
+<p><strong>TQ-02: EV Charging Point Specification</strong></p>
+<ul>
+<li><strong>Query:</strong> Document A specifies 230V, 7.0kW (single-phase) EV charging units. Document B specifies units capable of delivering 32A 3-phase power (approx. 22kW). Please clarify the definitive specification for the Electric Vehicle charging units to be installed.</li>
+</ul>
+</li>
+<li>
+<p><strong>TQ-03: Socket Circuit Design (Residential)</strong></p>
+<ul>
+<li><strong>Query:</strong> Document A limits circuits to 6 No. twin socket outlets. Document B limits circuits to 6 No. single socket outlets. A twin socket is typically considered as two outlets. Please confirm the design basis for the maximum number of outlets per final socket circuit in residential units.</li>
+</ul>
+</li>
+<li>
+<p><strong>TQ-04: Switchgear IP Rating &amp; LV Board Fault Levels</strong></p>
+<ul>
+<li><strong>Query:</strong> Document A specifies IP41 for LV switchgear. Document B specifies a minimum of IP44, with gland plates maintaining IP3X. Furthermore, Document A specifies fault levels for Main (65kA) and Sub-Distribution (25kA) boards, which are absent in Document B. Please confirm the required IP rating and the design fault levels for all LV switchboards to ensure correct equipment specification.</li>
+</ul>
+</li>
+</ol></td>
+                </tr>
+                
+                <tr>
+                    <td style="width: 50px; text-align: center;"><strong>TQ-004</strong></td>
+                    <td style="width: 200px;">Fire Safety</td>
+                    <td><p><strong>Technical Query: Fire Alarm System Standard and Key Parameter Omissions</strong>
+1.  <strong>Standard Conflict</strong>: The specifications reference different primary standards for the fire alarm system (EN54/BS 5839 vs. IS 3218). Please confirm the governing standard for system design, installation, and certification.
+2.  <strong>Missing Parameters</strong>: Document B's electrical scope omits several key fire safety parameters defined in Document A, including fire blanket size, smoke duct ratings, and critical electrical protection device ratings (e.g., RCD 30mA/9kA). Please confirm if these requirements from Document A are to be included in the electrical works or are the responsibility of another trade, and update Document B accordingly.
+3.  <strong>Fault Level Specification</strong>: Clarify the required fault level (kA) for the Main LV and Sub-Distribution Switchboards, as there is a discrepancy between the documents.</p></td>
+                </tr>
+                
+                <tr>
+                    <td style="width: 50px; text-align: center;"><strong>TQ-005</strong></td>
+                    <td style="width: 200px;">Lifts</td>
+                    <td><ul>
+<li><strong>TQ-001 - Responsibility for Lift Wiring Interfaces</strong>: Documents A (4.15.1) and B (22) assign responsibility for lift-associated wiring and coordination to different parties (Developer's team vs. Electrical Contractor). Please clarify the single point of responsibility for the design, provision, and coordination of all wiring, controls points, and attendances between the lift system, mechanical services, and electrical installations to avoid gaps or duplication.</li>
+</ul></td>
+                </tr>
+                
+                <tr>
+                    <td style="width: 50px; text-align: center;"><strong>TQ-006</strong></td>
+                    <td style="width: 200px;">Lighting</td>
+                    <td><p><strong>Technical Query - Lighting Installation in Residential Units</strong>
+<strong>Subject:</strong> Conflict between wiring specifications for apartment lighting circuits.
+<strong>Reference:</strong> LDA.pdf (Section 4) vs. EDC SOW.pdf (Section LIGHTING CONTROLS).
+<strong>Query:</strong>
+Document A (LDA) specifies lighting circuits within residential units are to be wired using "2.5 or 4.0sq.mm PVC insulated cable... in hard drawn round PVC conduit."
+Document B (EDC SOW) specifies "All lighting wiring to be completed using a minimum size of 1.5mm NHXMH-J/Twin and Earth cable."
+These are contradictory specifications for the core wiring methodology.
+<strong>Request for Instruction:</strong> Please confirm which specification shall govern the installation:
+1.  <strong>Option A:</strong> PVC singles in conduit as per LDA.
+2.  <strong>Option B:</strong> Twin &amp; Earth cable as per EDC SOW (if so, please specify required containment, if any).
+3.  <strong>Option C:</strong> A different, clarified specification.</p>
+<p><strong>Technical Query - Public Lighting Ducting</strong>
+<strong>Subject:</strong> Discrepancy in specified duct diameter for public lighting.
+<strong>Reference:</strong> LDA.pdf (Section 56) vs. EDC SOW.pdf (Section 14).
+<strong>Query:</strong>
+LDA specifies "125mm underground ducting" for public lighting.
+EDC SOW specifies a minimum external diameter of "107mm" for external lighting ducting.
+<strong>Request for Instruction:</strong> Please confirm the required nominal diameter for public lighting ducting: 125mm (per LDA) or 107mm (per EDC SOW).</p></td>
+                </tr>
+                
+                <tr>
+                    <td style="width: 50px; text-align: center;"><strong>TQ-007</strong></td>
+                    <td style="width: 200px;">Mechanical/HVAC</td>
+                    <td><ul>
+<li><strong>TQ-001: Interface Coordination</strong>: The electrical scope (EDC) requires power and control for all mechanical plant (HVAC, ventilation, pumps, etc.). Confirm that the mechanical design (LDA) has been fully shared with the electrical contractor to allow for accurate load scheduling, isolator sizing, and control point identification. A coordinated schedule of final equipment loads, locations, and control sequences is required.</li>
+<li><strong>TQ-002: Bonding Details</strong>: Document B requires supplementary bonding of radiators, DHWS pipes, and other metallic services. Confirm that the mechanical installation (per Document A) will provide suitable accessible bonding points on all specified items (e.g., radiators, copper pipework) to facilitate this electrical requirement.</li>
+</ul></td>
+                </tr>
+                
+                <tr>
+                    <td style="width: 50px; text-align: center;"><strong>TQ-008</strong></td>
+                    <td style="width: 200px;">Plumbing</td>
+                    <td><ul>
+<li>No conflicts requiring a Technical Query (TQ) were identified. The documents are complementary. The primary action is to ensure the electrical contractor (working to Document B) coordinates with the plumbing contractor (working to Document A) to ensure all bonding points on water pipes, tanks, and metalwork are accessible and correctly identified during installation.</li>
+</ul></td>
+                </tr>
+                
+                <tr>
+                    <td style="width: 50px; text-align: center;"><strong>TQ-009</strong></td>
+                    <td style="width: 200px;">Sustainability</td>
+                    <td><ul>
+<li><strong>TQ-01: Integration of Performance Specifications into Electrical Scope</strong><ul>
+<li><strong>Query</strong>: Document A (LDA) specifies key performance parameters (e.g., 49 dB(A) for appliances, 30mA/9kA RCBOs, 25kA switchboard fault level, PV warranty terms). Document B (EDC), the electrical scope, does not reference these requirements. Please confirm that all equipment selection, submittals, and installations under the EDC scope will be fully compliant with the performance and warranty criteria stipulated in the LDA.</li>
+</ul>
+</li>
+</ul></td>
+                </tr>
+                
+                <tr>
+                    <td style="width: 50px; text-align: center;"><strong>TQ-010</strong></td>
+                    <td style="width: 200px;">General Requirements</td>
+                    <td><ul>
+<li><strong>TQ-001 - Specification Conflict Hierarchy</strong>: Document A (LDA Specification, Section 1.1) states that the LDA Apartment Typology Booklet prevails in case of inconsistency and the Technical Monitor's direction is conclusive. Document B (EDC Electrical Scope, IMPORTANT NOTICE) states that Irish Standards and Regulations prevail over the specification in case of conflict. Please clarify the definitive order of precedence for the project to resolve potential conflicts between: 1) Irish Standards/Regulations, 2) the LDA Apartment Typology Booklet, 3) the LDA Specification, 4) the EDC Electrical Scope, and 5) the direction of the Technical Monitor.</li>
+</ul></td>
+                </tr>
+                
+                </tbody>
+            </table>
+            
+                </div>
+                
+                <footer>
+                    Generated by PyRAG Engineering Compliance Agent<br>
+                    Confidential & Proprietary
+                </footer>
+            </div>
+        </body>
+        </html>
+        

@@ -1,30 +1,9 @@
 {
-  "IS3217.pdf": {
-    "category": "Standard",
+  "LDA.pdf": {
+    "category": "Government",
     "project": "N/A",
-    "standard_no": "IS 3217",
-    "date": "2023",
-    "description": "Emergency Lighting"
-  },
-  "IS3218.pdf": {
-    "category": "Standard",
-    "project": "N/A",
-    "standard_no": "IS 3218",
-    "date": "2024",
-    "description": "Fire Detection and Alarm Systems"
-  },
-  "IS10101.pdf": {
-    "category": "Standard",
-    "project": "N/A",
-    "standard_no": "IS 10101",
-    "date": "2020",
-    "description": "National Rules for Electrical Installation"
-  },
-  "RULES OF THUMB.pdf": {
-    "category": "Technical Guidance",
-    "project": "N/A",
-    "standard_no": "RULES OF THUMB",
-    "date": "2020-02",
-    "description": "Guidelines for building services"
+    "standard_no": "LDA",
+    "date": "2024-02",
+    "description": "Land Development Agency"
   }
 }

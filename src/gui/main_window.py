@@ -19,6 +19,7 @@ from .constants import *
 from .sidebar import Sidebar
 from .chat import ChatArea
 from .dialogs import NewDocumentDialog, SettingsDialog, DatabaseManagerDialog, CrossReferenceDialog, AutoSummaryDialog
+from .rule_miner_dialog import RuleMinerDialog
 
 
 class PyRAGApp(ctk.CTk):
@@ -143,7 +144,7 @@ class PyRAGApp(ctk.CTk):
             'open_settings': self.open_settings_dialog,
             'open_database': self.open_database_manager,
             'open_cross_reference': self.open_cross_reference_dialog,
-            'open_auto_summary': self.open_auto_summary_dialog,
+            'open_rule_miner': self.open_rule_miner_dialog,
             'show_history': self.show_history,
             'export_results': self.export_results,
             'view_graph': self.view_graph,
@@ -698,6 +699,51 @@ class PyRAGApp(ctk.CTk):
                 f"Failed to open cross-reference dialog:\n{str(e)}"
             )
     
+    def open_rule_miner_dialog(self):
+        """Open Rule Miner (Golden Rules) dialog"""
+        if not self.query_engine:
+            messagebox.showwarning(
+                "Not Ready",
+                "System is still initializing. Please wait."
+            )
+            return
+        
+        # Get available documents from the index
+        try:
+            stats = self.query_engine.get_stats()
+            # Reuse logic to get documents list
+            documents = set()
+            try:
+                if hasattr(self.query_engine, 'client'):
+                    collection_name = self.query_engine.settings.get_collection_name()
+                    offset = None
+                    while True:
+                        points, next_offset = self.query_engine.client.scroll(
+                            collection_name=collection_name,
+                            limit=100,
+                            offset=offset,
+                            with_payload=True
+                        )
+                        for point in points:
+                            if point.payload and 'file_name' in point.payload:
+                                documents.add(point.payload['file_name'])
+                        
+                        offset = next_offset
+                        if offset is None:
+                            break
+            except Exception as e:
+                logger.warning(f"Failed to fetch documents list: {e}")
+
+            if not documents:
+                messagebox.showinfo("No Documents", "Please add documents first.")
+                return
+            
+            RuleMinerDialog(self, sorted(list(documents)))
+            
+        except Exception as e:
+            logger.error(f"Error opening rule miner: {e}")
+            messagebox.showerror("Error", f"Failed to open rule miner:\n{str(e)}")
+
     def open_auto_summary_dialog(self):
         """Open auto-summary generator dialog"""
         if not self.query_engine:
@@ -761,7 +807,7 @@ class PyRAGApp(ctk.CTk):
                 "Error",
                 f"Failed to open auto-summary dialog:\n{str(e)}"
             )
-    
+
     def show_statistics(self):
         """Show system statistics"""
         try:
