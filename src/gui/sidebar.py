@@ -22,10 +22,16 @@ class Sidebar:
         self.parent = parent
         self.callbacks = callbacks
         
-        # Create sidebar frame
-        self.frame = ctk.CTkFrame(parent, width=SIDEBAR_WIDTH, corner_radius=0)
+        # Create sidebar frame (Docker-style dark background)
+        self.frame = ctk.CTkFrame(
+            parent, 
+            width=SIDEBAR_WIDTH, 
+            corner_radius=0,
+            fg_color=COLORS['darker_bg'],
+            border_width=0
+        )
         self.frame.grid(row=0, column=0, rowspan=2, sticky="nsew")
-        self.frame.grid_rowconfigure(10, weight=1)
+        self.frame.grid_rowconfigure(99, weight=1)  # Push footer to bottom
         
         self._create_header()
         self._create_status_section()
@@ -50,7 +56,7 @@ class Sidebar:
     
     def _create_status_section(self):
         """Create API status indicators"""
-        status_frame = ctk.CTkFrame(self.frame)
+        status_frame = ctk.CTkFrame(self.frame, fg_color="transparent")
         status_frame.grid(row=2, column=0, padx=20, pady=10, sticky="ew")
         status_frame.grid_columnconfigure(1, weight=1)
         
@@ -64,7 +70,7 @@ class Sidebar:
         self.embedding_indicator = ctk.CTkLabel(
             status_frame,
             text=STATUS_ICONS['online'],
-            font=ctk.CTkFont(size=12, weight="bold"),
+            font=ctk.CTkFont(size=16, weight="bold"),  # Increased visibility
             text_color=STATUS_COLORS['online'],
             width=10
         )
@@ -73,7 +79,7 @@ class Sidebar:
         self.embedding_label = ctk.CTkLabel(
             status_frame,
             text="Embedding: OpenAI",
-            font=ctk.CTkFont(size=FONT_SIZES['tiny']),
+            font=ctk.CTkFont(size=FONT_SIZES['small']),  # Increased from tiny
             anchor="w",
             text_color=COLORS['gray']
         )
@@ -83,7 +89,7 @@ class Sidebar:
         self.llm_indicator = ctk.CTkLabel(
             status_frame,
             text=STATUS_ICONS['online'],
-            font=ctk.CTkFont(size=12, weight="bold"),
+            font=ctk.CTkFont(size=16, weight="bold"),  # Increased visibility
             text_color=STATUS_COLORS['online'],
             width=10
         )
@@ -92,162 +98,121 @@ class Sidebar:
         self.llm_label = ctk.CTkLabel(
             status_frame,
             text="LLM: DeepSeek",
-            font=ctk.CTkFont(size=FONT_SIZES['tiny']),
+            font=ctk.CTkFont(size=FONT_SIZES['small']),  # Increased from tiny
             anchor="w",
             text_color=COLORS['gray']
         )
         self.llm_label.grid(row=2, column=1, padx=2, pady=(0, 10), sticky="w")
     
+    def _create_menu_button(self, text, icon, command, row):
+        """
+        Create a custom compound button with separate Icon and Text scaling.
+        Uses a Frame + 2 Labels to achieve perfect alignment and sizing control.
+        """
+        # Container Frame (acts as the button background)
+        btn_frame = ctk.CTkFrame(
+            self.frame,
+            corner_radius=6,
+            fg_color="transparent",
+            height=45,
+            width=SIDEBAR_WIDTH - 30,
+            cursor="hand2"
+        )
+        btn_frame.grid(row=row, column=0, padx=15, pady=2, sticky="ew")
+        btn_frame.grid_propagate(False) # Force height
+        
+        # Grid layout for alignment
+        btn_frame.grid_columnconfigure(0, weight=0)             # Icon column auto matches icon_frame
+        btn_frame.grid_columnconfigure(1, weight=1)             # Text column expands
+
+        # Icon Container (Fixed Size to normalize emoji widths)
+        icon_frame = ctk.CTkFrame(btn_frame, fg_color="transparent", width=45, height=45)
+        icon_frame.grid(row=0, column=0, sticky="nsew")
+        icon_frame.grid_propagate(False) # Prevent expansion based on icon content
+        
+        # Icon Label (2x Size)
+        # REVERT & FIX: 
+        # 1. "East" anchor caused icons to disappear (likely clipped out of frame).
+        # 2. "Center" anchor caused "floating" look for narrow icons.
+        # SOLUTION: "West" (Left) anchor with fixed padding. 
+        # This ensures all icons start at the EXACT same X-coordinate (10px).
+        # Visually this creates a strong vertical line for the eye.
+        icon_label = ctk.CTkLabel(
+            icon_frame,
+            text=icon,
+            font=ctk.CTkFont(size=26),
+            text_color="#e0e0e0",
+            anchor="w" # Align text to left
+        )
+        # Place left edge of text at 8px from left edge of frame
+        icon_label.place(relx=0.0, rely=0.5, anchor="w", x=8)
+
+        # Text Label (1.5x Size & Bold) aligned with New Document style
+        text_label = ctk.CTkLabel(
+            btn_frame,
+            text=text,
+            font=ctk.CTkFont(size=15, weight="bold"),
+            text_color="#e0e0e0",
+            anchor="w"
+        )
+        # Consistent padding from the icon frame
+        text_label.grid(row=0, column=1, sticky="ew", padx=(5, 10))
+
+        # HOVER PROXY
+        # We need to bind events to all elements to simulate a single button
+        
+        def on_enter(e):
+            btn_frame.configure(fg_color=COLORS['hover'])
+        
+        def on_leave(e):
+            btn_frame.configure(fg_color="transparent")
+            
+        def on_click(e):
+            if command:
+                command()
+
+        for widget in [btn_frame, icon_frame, icon_label, text_label]:
+            widget.bind("<Enter>", on_enter)
+            widget.bind("<Leave>", on_leave)
+            widget.bind("<Button-1>", on_click)
+
+        return btn_frame
+
     def _create_action_buttons(self):
-        """Create organized action buttons with sections"""
+        """Create organized action buttons with section-less layout"""
         row = 3
         
-        # PRIMARY ACTION
+        # PRIMARY BUTTON (New Document)
+        # Kept as standard button for "Primary" look but matched style
         ctk.CTkButton(
             self.frame,
-            text="➕ New Document",
+            text="New Document",
             command=self.callbacks.get('open_new_document'),
-            height=BUTTON_HEIGHTS['primary'],
-            font=ctk.CTkFont(size=FONT_SIZES['normal'], weight="bold"),
+            height=45,
+            font=ctk.CTkFont(size=16, weight="bold"), # Matched size
             fg_color=COLORS['primary'],
             hover_color=COLORS['primary_hover'],
-            corner_radius=8
-        ).grid(row=row, column=0, padx=20, pady=(SPACING['section'], SPACING['minor']), sticky="ew")
+            corner_radius=6
+        ).grid(row=row, column=0, padx=15, pady=(20, 20), sticky="ew")
         row += 1
-        
-        ctk.CTkButton(
-            self.frame,
-            text="📊 View Statistics",
-            command=self.callbacks.get('show_statistics'),
-            height=BUTTON_HEIGHTS['secondary'],
-            font=ctk.CTkFont(size=FONT_SIZES['small']),
-            fg_color="transparent",
-            border_width=2,
-            corner_radius=8
-        ).grid(row=row, column=0, padx=20, pady=SPACING['minor'], sticky="ew")
-        row += 1
-        
-        # SECTION: CHAT CONTROLS
-        ctk.CTkLabel(
-            self.frame,
-            text="CHAT",
-            font=ctk.CTkFont(size=FONT_SIZES['mini'], weight="bold"),
-            text_color="gray"
-        ).grid(row=row, column=0, padx=20, pady=(SPACING['section'], SPACING['small']), sticky="w")
-        row += 1
-        
-        ctk.CTkButton(
-            self.frame,
-            text="🗑️ Clear Chat",
-            command=self.callbacks.get('clear_chat'),
-            height=BUTTON_HEIGHTS['secondary'],
-            font=ctk.CTkFont(size=FONT_SIZES['small']),
-            fg_color="transparent",
-            border_width=2,
-            corner_radius=8
-        ).grid(row=row, column=0, padx=20, pady=SPACING['small'], sticky="ew")
-        row += 1
-        
-        ctk.CTkButton(
-            self.frame,
-            text="📜 Query History",
-            command=self.callbacks.get('show_history'),
-            height=BUTTON_HEIGHTS['secondary'],
-            font=ctk.CTkFont(size=FONT_SIZES['small']),
-            fg_color="transparent",
-            border_width=2,
-            corner_radius=8
-        ).grid(row=row, column=0, padx=20, pady=SPACING['small'], sticky="ew")
-        row += 1
-        
-        # SECTION: ADVANCED FEATURES
-        ctk.CTkLabel(
-            self.frame,
-            text="ADVANCED",
-            font=ctk.CTkFont(size=FONT_SIZES['mini'], weight="bold"),
-            text_color="gray"
-        ).grid(row=row, column=0, padx=20, pady=(SPACING['section'], SPACING['small']), sticky="w")
-        row += 1
-        
-        ctk.CTkButton(
-            self.frame,
-            text="🔗 Cross-Reference",
-            command=self.callbacks.get('open_cross_reference'),
-            height=BUTTON_HEIGHTS['secondary'],
-            font=ctk.CTkFont(size=FONT_SIZES['small']),
-            fg_color="transparent",
-            border_width=2,
-            corner_radius=8
-        ).grid(row=row, column=0, padx=20, pady=SPACING['small'], sticky="ew")
-        row += 1
-        
-        ctk.CTkButton(
-            self.frame,
-            text="⛏️ Rule Miner",
-            command=self.callbacks.get('open_rule_miner'),
-            height=BUTTON_HEIGHTS['secondary'],
-            font=ctk.CTkFont(size=FONT_SIZES['small']),
-            fg_color="transparent",
-            border_width=2,
-            corner_radius=8
-        ).grid(row=row, column=0, padx=20, pady=SPACING['small'], sticky="ew")
-        row += 1
-        
-        ctk.CTkButton(
-            self.frame,
-            text="🎨 View Graph",
-            command=self.callbacks.get('view_graph'),
-            height=BUTTON_HEIGHTS['secondary'],
-            font=ctk.CTkFont(size=FONT_SIZES['small']),
-            fg_color="transparent",
-            border_width=2,
-            corner_radius=8
-        ).grid(row=row, column=0, padx=20, pady=SPACING['small'], sticky="ew")
-        row += 1
-        
-        ctk.CTkButton(
-            self.frame,
-            text="⚡ Clear Cache",
-            command=self.callbacks.get('clear_cache'),
-            height=BUTTON_HEIGHTS['secondary'],
-            font=ctk.CTkFont(size=FONT_SIZES['small']),
-            fg_color="transparent",
-            border_width=2,
-            corner_radius=8
-        ).grid(row=row, column=0, padx=20, pady=SPACING['small'], sticky="ew")
-        row += 1
-        
-        # SECTION: SYSTEM
-        ctk.CTkLabel(
-            self.frame,
-            text="SYSTEM",
-            font=ctk.CTkFont(size=FONT_SIZES['mini'], weight="bold"),
-            text_color="gray"
-        ).grid(row=row, column=0, padx=20, pady=(SPACING['section'], SPACING['small']), sticky="w")
-        row += 1
-        
-        ctk.CTkButton(
-            self.frame,
-            text="⚙️ Settings",
-            command=self.callbacks.get('open_settings'),
-            height=BUTTON_HEIGHTS['secondary'],
-            font=ctk.CTkFont(size=FONT_SIZES['small']),
-            fg_color="transparent",
-            border_width=2,
-            corner_radius=8
-        ).grid(row=row, column=0, padx=20, pady=SPACING['small'], sticky="ew")
-        row += 1
-        
-        ctk.CTkButton(
-            self.frame,
-            text="🗄️ Database",
-            command=self.callbacks.get('open_database'),
-            height=BUTTON_HEIGHTS['secondary'],
-            font=ctk.CTkFont(size=FONT_SIZES['small']),
-            fg_color="transparent",
-            border_width=2,
-            corner_radius=8
-        ).grid(row=row, column=0, padx=20, pady=(SPACING['small'], SPACING['section']), sticky="ew")
+
+        # LIST OF MENU ITEMS separated into Text and Icon
+        items = [
+            ("View Statistics", "📊", 'show_statistics'),
+            ("Clear Chat", "🗑️", 'clear_chat'),
+            ("Query History", "📜", 'show_history'),
+            ("Cross-Reference", "🔗", 'open_cross_reference'),
+            ("Rule Miner", "⛏️", 'open_rule_miner'),
+            ("View Graph", "🎨", 'view_graph'),
+            ("Clear Cache", "⚡", 'clear_cache'),
+            ("Settings", "⚙️", 'open_settings'),
+            ("Database", "🗄️", 'open_database')
+        ]
+
+        # Loop through items without any spacer checks
+        for text, icon, callback_key in items:
+            self._create_menu_button(text, icon, self.callbacks.get(callback_key), row)
+            row += 1
     
     def _create_footer(self):
         """Create version info"""
@@ -256,7 +221,7 @@ class Sidebar:
             text="v2.0.0 | Phase 6 Complete",
             font=ctk.CTkFont(size=FONT_SIZES['mini']),
             text_color="gray"
-        ).grid(row=20, column=0, padx=20, pady=(8, 16), sticky="s")
+        ).grid(row=99, column=0, padx=20, pady=(8, 16), sticky="s")
     
     def update_status(self, embedding_status=True, llm_status=True):
         """Update API status indicators"""

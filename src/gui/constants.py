@@ -11,41 +11,43 @@ PHI = 1.618
 APPEARANCE_MODE = "dark"
 COLOR_THEME = "blue"
 
-# Colors
+# Colors (Ultra-Modern Docker Dark Theme)
 COLORS = {
-    'primary': '#1f6aa5',
-    'primary_hover': '#164e7e',
-    'success': '#2ecc71',
-    'success_hover': '#27ae60',
-    'danger': '#e74c3c',
-    'danger_hover': '#c0392b',
-    'warning': '#f39c12',
-    'info': '#3498db',
-    'gray': '#cccccc',
-    'dark_bg': '#2b2b2b',
-    'darker_bg': '#333333',
-    'hover': '#3d3d3d',
-    'success_tint': '#1a4d2e',
-    'error_tint': '#4d1a1a',
+    'primary': '#0090FF',           # Docker Desktop Bright Blue
+    'primary_hover': '#0078C8',     # Darker Blue
+    'success': '#2EA043',           # Docker Green
+    'success_hover': '#238636',
+    'danger': '#F85149',            # Error Red
+    'danger_hover': '#DA3633',
+    'warning': '#D29922',           # Warning Yellow
+    'info': '#58A6FF',              # Info Blue
+    'gray': '#8B949E',              # Subtext Gray
+    'dark_bg': '#191919',           # Main Background (Docker Dark Grey)
+    'darker_bg': '#000000',         # Sidebar Background (Pure Black)
+    'hover': '#2D333B',             # Hover State
+    'success_tint': '#1A4D2E',
+    'error_tint': '#4D1A1A',
+    'border': '#30363D',            # Separator Borders
+    'input_bg': '#252526',          # Input Field Background
 }
 
-# Font Sizes (based on golden ratio)
+# Font Sizes (Optimized for readability)
 FONT_SIZES = {
-    'title': 32,
-    'subtitle': 20,
-    'header': 18,
-    'large': 16,
+    'title': 28,
+    'subtitle': 18,
+    'header': 16,
+    'large': 15,
     'medium': 14,
-    'normal': 13,
-    'small': 12,
-    'tiny': 11,
-    'mini': 10,
+    'normal': 14,
+    'small': 13,
+    'tiny': 12,
+    'mini': 11,
 }
 
 # Button Heights (optimized for compact layout)
 BUTTON_HEIGHTS = {
-    'primary': 45,                  # Primary action button
-    'secondary': 36,                # Secondary buttons
+    'primary': 40,                  # Primary action button
+    'secondary': 34,                # Secondary buttons
     'tertiary': 32,                 # Tertiary buttons
     'small': 28,
     'tiny': 24,

@@ -207,6 +207,33 @@ class GraphManager:
             
             session.run(query, source_name=source_name, target_standard=target_standard, properties=properties)
             logger.info(f"🔗 Created REFERS_TO: {source_name} → {target_standard}")
+
+    def create_section_reference(self, source_section: str, target_section: str, document_name: str):
+        """
+        Create REFERS_TO relationship between two sections in the same document
+        """
+        if source_section == target_section:
+            return
+
+        with self.driver.session(database=self.database) as session:
+            query = """
+                MATCH (source:SECTION {number: $source_section, document: $doc_name})
+                MATCH (target:SECTION {number: $target_section, document: $doc_name})
+                MERGE (source)-[r:REFERS_TO]->(target)
+            """
+            session.run(query, source_section=source_section, target_section=target_section, doc_name=document_name)
+            
+    def create_section_hierarchy(self, parent_section: str, child_section: str, document_name: str):
+        """
+        Create PARENT_OF relationship between sections (Hierarchy)
+        """
+        with self.driver.session(database=self.database) as session:
+            query = """
+                MATCH (parent:SECTION {number: $parent_section, document: $doc_name})
+                MATCH (child:SECTION {number: $child_section, document: $doc_name})
+                MERGE (parent)-[:PARENT_OF]->(child)
+            """
+            session.run(query, parent_section=parent_section, child_section=child_section, doc_name=document_name)
     
     def get_cross_references(self, entity_name: str, max_hops: int = 2) -> List[Dict]:
         """

@@ -179,30 +179,32 @@ class GraphRetriever:
         by_type = {}
         learned_count = 0
         
-        for ref in references:
-            ref_type = ref['type'][0] if ref['type'] else 'Unknown'
-            by_type[ref_type] = by_type.get(ref_type, 0) + 1
+        summary_lines = [f"Graph analizinde {', '.join(entities)} ile ilgili bulgular:"]
+        
+        for ref in references[:15]:  # Include top 15 references
+            ref_type = ref.get('type', 'Unknown')
+            name = ref.get('name', 'Unknown')
+            # Format: REFERS_TO, CONTAINS etc.
+            rels = ', '.join(ref.get('relationship_types', []))
             
-            # Check for learned relationships
+            # Create descriptive line
+            if ref_type == 'STANDARD':
+                summary_lines.append(f"- [Standart] {name} ({rels})")
+            elif ref_type == 'SECTION':
+                title = ref.get('properties', {}).get('title', '')
+                if title:
+                    summary_lines.append(f"- [Bölüm] {name} - {title} ({rels})")
+                else:
+                    summary_lines.append(f"- [Bölüm] {name} ({rels})")
+            
+            by_type[ref_type] = by_type.get(ref_type, 0) + 1
             if 'COMPLEMENTS' in ref.get('relationship_types', []):
                 learned_count += 1
         
-        # Build summary
-        parts = []
-        if 'STANDARD' in by_type:
-            parts.append(f"{by_type['STANDARD']} ilgili standart")
-        if 'SECTION' in by_type:
-            parts.append(f"{by_type['SECTION']} bölüm")
-        if 'DOCUMENT' in by_type:
-            parts.append(f"{by_type['DOCUMENT']} döküman")
-        
         if learned_count > 0:
-            parts.append(f"**{learned_count} adet öğrenilmiş ilişki**")
+            summary_lines.append(f"**{learned_count} adet öğrenilmiş ilişki bulunmaktadır.**")
         
-        if not parts:
-            return ""
-        
-        return f"Graph analizinde {', '.join(parts)} tespit edilmiştir."
+        return "\n".join(summary_lines)
     
     def get_statistics(self) -> Dict:
         """Get graph statistics"""

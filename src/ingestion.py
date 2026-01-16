@@ -97,14 +97,16 @@ class DocumentIngestion:
             logger.info("   Using existing Qdrant client")
             self.client = self.external_client
         else:
-            if self.settings.qdrant_url and self.settings.qdrant_api_key:
-                logger.info(f"   Connecting to Qdrant Cloud: {self.settings.qdrant_url}")
+            # Check for URL generally (Docker/Cloud)
+            if self.settings.qdrant_url:
+                logger.info(f"   Connecting to Qdrant (Docker/Cloud): {self.settings.qdrant_url}")
                 self.client = qdrant_client.QdrantClient(
                     url=self.settings.qdrant_url,
-                    api_key=self.settings.qdrant_api_key
+                    # Only pass API key if it exists
+                    api_key=self.settings.qdrant_api_key if self.settings.qdrant_api_key else None
                 )
             else:
-                logger.info(f"   Using local Qdrant: {self.settings.qdrant_path}")
+                logger.info(f"   Using local Qdrant (File): {self.settings.qdrant_path}")
                 self.client = qdrant_client.QdrantClient(
                     path=self.settings.qdrant_path
                 )

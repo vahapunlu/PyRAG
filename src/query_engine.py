@@ -181,11 +181,11 @@ class QueryEngine:
             collection_name = self.settings.get_collection_name()
             
             # Qdrant Setup
-            if self.settings.qdrant_url and self.settings.qdrant_api_key:
-                logger.info(f"Using Qdrant Cloud: {self.settings.qdrant_url}")
+            if self.settings.qdrant_url:
+                logger.info(f"Using Qdrant (Docker/Cloud): {self.settings.qdrant_url}")
                 self.client = qdrant_client.QdrantClient(
                     url=self.settings.qdrant_url,
-                    api_key=self.settings.qdrant_api_key
+                    api_key=self.settings.qdrant_api_key if self.settings.qdrant_api_key else None
                 )
             else:
                 self.client = qdrant_client.QdrantClient(
@@ -583,6 +583,37 @@ class QueryEngine:
                 weights=query_analysis['weights'],
                 query=query_to_use
             )
+            
+            # Step 2.1: Inject Graph Context if available
+            if graph_info and graph_info.get('summary'):
+                try:
+                    from llama_index.core.schema import TextNode, NodeWithScore
+                    
+                    graph_text = f"""
+*** KNOWLEDGE GRAPH CONTEXT (CROSS-REFERENCES) ***
+Aşağıdaki ilgili bölümler ve standartlar Knowledge Graph analizinde tespit edilmiştir.
+Bu bölümler soruyla yakından ilgilidir, cevaplarken bu ilişkilere dikkat ediniz:
+
+{graph_info['summary']}
+*************************************************
+"""
+                    graph_node = NodeWithScore(
+                        node=TextNode(
+                            text=graph_text, 
+                            metadata={
+                                "source": "Knowledge Graph", 
+                                "type": "graph_context",
+                                "file_name": "Graph Analysis"
+                            }
+                        ),
+                        score=1.1  # Score > 1.0 to ensure it's top priority
+                    )
+                    
+                    # Insert at the very beginning
+                    blended_nodes.insert(0, graph_node)
+                    logger.info("   🕸️ Injected Graph Context into LLM input")
+                except Exception as e:
+                    logger.warning(f"Failed to inject graph context: {e}")
             
             # Step 2.5: Apply bullet feedback penalties to irrelevant chunks
             # Apply learned penalties to filter out noise

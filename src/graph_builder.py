@@ -212,8 +212,11 @@ class GraphBuilder:
                 )
                 stats['relationships'] += 1
         
-        # Step 4: Create section nodes
-        for section_number in sorted(doc_data['sections']):
+        # Step 4: Create section nodes and extraction internal structure
+        sorted_sections = sorted(doc_data['sections'])
+        section_lookup = set(sorted_sections)
+        
+        for section_number in sorted_sections:
             # Find section metadata from chunks
             section_meta = self._find_section_metadata(section_number, doc_data['chunks'])
             
@@ -229,13 +232,14 @@ class GraphBuilder:
             )
             stats['sections'] += 1
             
-            # Check if this section refers to any standards
+            # Get text for this section
             section_chunks = [c for c in doc_data['chunks'] 
                             if c['metadata'].get('section_number') == section_number]
             section_text = ' '.join([c['text'] for c in section_chunks])
-            section_refs = self.reference_extractor.extract_standards(section_text)
             
-            for std_ref in section_refs[:3]:  # Limit to top 3 per section
+            # --- A. Standard References ---
+            section_std_refs = self.reference_extractor.extract_standards(section_text)
+            for std_ref in section_std_refs[:5]:  # Limit top 5
                 std_name = std_ref['full']
                 if std_name in seen_standards:
                     self.graph_manager.create_refers_to_relationship(
@@ -245,6 +249,43 @@ class GraphBuilder:
                         properties={'page': section_meta.get('page_number', '')}
                     )
                     stats['relationships'] += 1
+
+            # --- B. Internal Section References ---
+            # Extract references like "Section 4.2" or just "4.2"
+            internal_refs = self.reference_extractor.extract_sections(section_text)
+            for ref in internal_refs:
+                # regex to extract just the number from "Section 4.2" -> "4.2"
+                import re
+                ref_text = ref['full']
+                # Simple extraction of numbers/dots
+                clean_ref = re.search(r'(\d+(\.\d+)*)', ref_text)
+                if clean_ref:
+                    target_sec = clean_ref.group(0)
+                    # Only link if target exists and is not self
+                    if target_sec in section_lookup and target_sec != section_number:
+                        self.graph_manager.create_section_reference(
+                            section_number, 
+                            target_sec, 
+                            doc_name
+                        )
+                        stats['relationships'] += 1
+
+        # Step 5: Build Hierarchy (Parent -> Child)
+        # 1.2.3 is child of 1.2
+        for section in sorted_sections:
+            parts = section.split('.')
+            if len(parts) > 1:
+                # Try to find parent by removing last part
+                for i in range(len(parts)-1, 0, -1):
+                    potential_parent = '.'.join(parts[:i])
+                    if potential_parent in section_lookup:
+                        self.graph_manager.create_section_hierarchy(
+                            potential_parent, 
+                            section, 
+                            doc_name
+                        )
+                        stats['relationships'] += 1
+                        break
     
     def _find_section_metadata(self, section_number: str, chunks: List[Dict]) -> Dict:
         """Find metadata for a specific section"""

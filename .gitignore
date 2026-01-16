@@ -11,7 +11,7 @@ build/
 
 # Environment
 .env
-.env.neo4j
+.env.*
 .venv
 venv/
 ENV/
@@ -23,9 +23,20 @@ web/.env.local
 *.swp
 *.swo
 
-# Database
+# Database & Storage
 chroma_db/
 *.db
+qdrant_db/
+cache_db/
+feedback_db/
+history_db/
+local_data/
+neo4j_data/
+
+# Data & Backups
+data/*.pdf
+data_backup/
+exports/
 
 # Logs
 *.log
@@ -35,12 +46,10 @@ logs/
 .DS_Store
 Thumbs.db
 
-# Large PDF files
-data/*.pdf
-
-# Project specific
-qdrant_db/
+# Web
 web/node_modules/
 web/.next/
 
-cache_db/
+# Docker
+docker-compose.yml
+Dockerfile

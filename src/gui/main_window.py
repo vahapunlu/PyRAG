@@ -33,6 +33,9 @@ class PyRAGApp(ctk.CTk):
         self.after(0, lambda: self.state('zoomed'))
         self.minsize(WINDOW_SIZES['main_min_width'], WINDOW_SIZES['main_min_height'])
         
+        # Apply Docker-like Dark Theme Background
+        self.configure(fg_color=COLORS['dark_bg'])
+        
         # State variables
         self.query_engine = None
         self.ingestion = None

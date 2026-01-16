@@ -26,7 +26,5 @@ export const getHealth = async () => {
     // Internal API is always "healthy" if the site is up
     return { status: 'online', service: 'nextjs-serverless' };
 };
-    }
-}
 
 export default api;

@@ -49,8 +49,8 @@ class ChatArea:
         self.all_projects = []  # All project names
         self.all_categories = []  # All category names
         
-        # Main frame
-        self.main_frame = ctk.CTkFrame(parent, corner_radius=0)
+        # Main frame (Docker Dark Background)
+        self.main_frame = ctk.CTkFrame(parent, corner_radius=0, fg_color=COLORS['dark_bg'])
         self.main_frame.grid(row=0, column=1, sticky="nsew", padx=0, pady=0)
         self.main_frame.grid_columnconfigure(0, weight=1)
         self.main_frame.grid_rowconfigure(2, weight=1)  # Chat display expands
@@ -67,7 +67,7 @@ class ChatArea:
     
     def _create_header(self):
         """Create chat header with query templates"""
-        header_frame = ctk.CTkFrame(self.main_frame, height=60, corner_radius=0)
+        header_frame = ctk.CTkFrame(self.main_frame, height=60, corner_radius=0, fg_color=COLORS['dark_bg'])
         header_frame.grid(row=0, column=0, sticky="ew", padx=0, pady=0)
         header_frame.grid_columnconfigure(1, weight=1)
         
@@ -98,9 +98,9 @@ class ChatArea:
             width=280,
             height=35,
             font=ctk.CTkFont(size=FONT_SIZES['tiny']),
-            fg_color=COLORS.get('dark_bg', '#2b2b2b'),
-            button_color=COLORS.get('primary', '#3498db'),
-            button_hover_color=COLORS.get('primary_hover', '#2980b9')
+            fg_color=COLORS['darker_bg'],       # Sidebar color for headers contrast
+            button_color=COLORS['primary'],
+            button_hover_color=COLORS['primary_hover']
         )
         self.template_menu.grid(row=0, column=1, padx=30, pady=15, sticky="e")
     

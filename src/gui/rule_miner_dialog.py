@@ -45,9 +45,11 @@ class RuleMinerDialog(ctk.CTkToplevel):
         
         ctk.CTkLabel(control_frame, text="Select Standard:").pack(side="left", padx=10)
         
-        # Filter out already processed documents
+        # Get processed documents (for info/warning if needed)
         processed_docs = self.miner.get_processed_documents()
-        self.available_docs = [d for d in self.documents if d not in processed_docs]
+        
+        # Filter out already processed documents
+        self.available_docs = sorted([d for d in self.documents if d not in processed_docs])
         
         self.doc_var = ctk.StringVar()
         self.doc_combo = ctk.CTkComboBox(control_frame, values=self.available_docs, variable=self.doc_var, width=300)
